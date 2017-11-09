@@ -16,7 +16,7 @@ Requires `cgo` but does not require linking to anything on the Windows and it li
 
 Documentation on [GoDoc](https://godoc.org/github.com/gen2brain/malgo). Also check [examples](https://github.com/gen2brain/malgo/tree/master/examples).
 
-## Platforms
+### Platforms
 
 * Windows (WASAPI, DirectSound, WinMM)
 * Linux (ALSA)
