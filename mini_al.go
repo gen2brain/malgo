@@ -216,8 +216,6 @@ func errorFromResult(r Result) error {
 	default:
 		return ErrError
 	}
-
-	return nil
 }
 
 // Backend type
@@ -244,7 +242,7 @@ const (
 	Capture
 )
 
-// Format type
+// FormatType type
 type FormatType uint32
 
 // Format enumeration

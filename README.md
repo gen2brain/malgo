@@ -1,6 +1,6 @@
 ## malgo
 [![TravisCI Build Status](https://travis-ci.org/gen2brain/malgo.svg?branch=master)](https://travis-ci.org/gen2brain/malgo) 
-[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/vawnh8s1j3w6la9t?svg=true)](https://ci.appveyor.com/project/gen2brain/malgo)
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/eofqkk271yjd3s3g?svg=true)](https://ci.appveyor.com/project/gen2brain/malgo)
 [![GoDoc](https://godoc.org/github.com/gen2brain/malgo?status.svg)](https://godoc.org/github.com/gen2brain/malgo) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/gen2brain/malgo?branch=master)](https://goreportcard.com/report/github.com/gen2brain/malgo) 
 
