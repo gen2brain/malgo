@@ -3,9 +3,5 @@ language: go
 go:
   - 1.9.x
 
-install:
-  - sudo apt-get update -y
-  - sudo apt-get install libasound2-dev -y
-
 script:
- - go test -v ./...
+ - go test -v ./
