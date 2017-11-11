@@ -1,5 +1,5 @@
 // Mini audio library. Public domain. See "unlicense" statement at the end of this file.
-// mini_al - v0.5 - 2017-11-xx
+// mini_al - v0.5 - 2017-11-11
 //
 // David Reid - davidreidsoftware@gmail.com
 
@@ -440,7 +440,7 @@ typedef enum
 typedef union
 {
 #ifdef MAL_SUPPORT_WASAPI
-    wchar_t wasapi[64];             // WASAPI uses a wchar_t string for identification which is also annoyingly long...
+    wchar_t wasapi[64];             // WASAPI uses a wchar_t string for identification.
 #endif
 #ifdef MAL_SUPPORT_DSOUND
     mal_uint8 dsound[16];           // DirectSound uses a GUID for identification.
@@ -574,7 +574,6 @@ typedef struct
 
     struct
     {
-        mal_bool32 preferPlugHW;
         mal_bool32 noMMap;  // Disables MMap mode.
     } alsa;
 } mal_device_config;
@@ -586,7 +585,7 @@ typedef struct
     struct
     {
         mal_bool32 useVerboseDeviceEnumeration;
-        mal_bool32 includeNullDevice;   // The "null" device is explicitly excluded by default. Setting this to true includes it.
+        mal_bool32 excludeNullDevice;
     } alsa;
 } mal_context_config;
 
@@ -1519,7 +1518,11 @@ typedef HWND (WINAPI * MAL_PFN_GetDesktopWindow)();
 
 #define mal_buffer_frame_capacity(buffer, channels, format) (sizeof(buffer) / mal_get_sample_size_in_bytes(format) / (channels))
 
-
+// Some of these string utility functions are unused on some platforms.
+#if defined(__GNUC__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-function"
+#endif
 // Return Values:
 //   0:  Success
 //   22: EINVAL
@@ -1714,6 +1717,9 @@ static int mal_strcmp(const char* str1, const char* str2)
 
     return ((unsigned char*)str1)[0] - ((unsigned char*)str2)[0];
 }
+#if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+#endif
 
 
 // Thanks to good old Bit Twiddling Hacks for this one: http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
@@ -3077,65 +3083,76 @@ static mal_result mal_enumerate_devices__wasapi(mal_context* pContext, mal_devic
         return mal_context_post_error(pContext, NULL, "[WASAPI] Failed to get device count.", MAL_NO_DEVICE);
     }
 
-    for (mal_uint32 iDevice = 0; iDevice < infoSize && iDevice < count; ++iDevice) {
-        mal_zero_object(pInfo);
+    for (mal_uint32 iDevice = 0; iDevice < count; ++iDevice) {
+        if (pInfo != NULL) {
+            if (infoSize > 0) {
+                mal_zero_object(pInfo);
 
-        IMMDevice* pDevice;
-        hr = IMMDeviceCollection_Item(pDeviceCollection, iDevice, &pDevice);
-        if (SUCCEEDED(hr)) {
-            // ID.
-            LPWSTR id;
-            hr = IMMDevice_GetId(pDevice, &id);
-            if (SUCCEEDED(hr)) {
-                size_t idlen = wcslen(id);
-                if (idlen+sizeof(wchar_t) > sizeof(pInfo->id.wasapi)) {
-                    mal_CoTaskMemFree(pContext, id);
-                    mal_assert(MAL_FALSE);  // NOTE: If this is triggered, please report it. It means the format of the ID must haved change and is too long to fit in our fixed sized buffer.
-                    continue;
-                }
-
-                memcpy(pInfo->id.wasapi, id, idlen * sizeof(wchar_t));
-                pInfo->id.wasapi[idlen] = '\0';
-
-                mal_CoTaskMemFree(pContext, id);
-            }
-
-            // Description / Friendly Name.
-            IPropertyStore *pProperties;
-            hr = IMMDevice_OpenPropertyStore(pDevice, STGM_READ, &pProperties);
-            if (SUCCEEDED(hr)) {
-                PROPVARIANT varName;
-                PropVariantInit(&varName);
-                hr = IPropertyStore_GetValue(pProperties, g_malPKEY_Device_FriendlyName, &varName);
+                IMMDevice* pDevice;
+                hr = IMMDeviceCollection_Item(pDeviceCollection, iDevice, &pDevice);
                 if (SUCCEEDED(hr)) {
-                    WideCharToMultiByte(CP_UTF8, 0, varName.pwszVal, -1, pInfo->name, sizeof(pInfo->name), 0, FALSE);
-                    mal_PropVariantClear(pContext, &varName);
+                    // ID.
+                    LPWSTR id;
+                    hr = IMMDevice_GetId(pDevice, &id);
+                    if (SUCCEEDED(hr)) {
+                        size_t idlen = wcslen(id);
+                        if (idlen+sizeof(wchar_t) > sizeof(pInfo->id.wasapi)) {
+                            mal_CoTaskMemFree(pContext, id);
+                            mal_assert(MAL_FALSE);  // NOTE: If this is triggered, please report it. It means the format of the ID must haved change and is too long to fit in our fixed sized buffer.
+                            continue;
+                        }
+
+                        memcpy(pInfo->id.wasapi, id, idlen * sizeof(wchar_t));
+                        pInfo->id.wasapi[idlen] = '\0';
+
+                        mal_CoTaskMemFree(pContext, id);
+                    }
+
+                    // Description / Friendly Name.
+                    IPropertyStore *pProperties;
+                    hr = IMMDevice_OpenPropertyStore(pDevice, STGM_READ, &pProperties);
+                    if (SUCCEEDED(hr)) {
+                        PROPVARIANT varName;
+                        PropVariantInit(&varName);
+                        hr = IPropertyStore_GetValue(pProperties, g_malPKEY_Device_FriendlyName, &varName);
+                        if (SUCCEEDED(hr)) {
+                            WideCharToMultiByte(CP_UTF8, 0, varName.pwszVal, -1, pInfo->name, sizeof(pInfo->name), 0, FALSE);
+                            mal_PropVariantClear(pContext, &varName);
+                        }
+
+                        IPropertyStore_Release(pProperties);
+                    }
                 }
 
-                IPropertyStore_Release(pProperties);
+                pInfo += 1;
+                infoSize -= 1;
+                *pCount += 1;
             }
+        } else {
+            *pCount += 1;
         }
-
-        pInfo += 1;
-        *pCount += 1;
     }
 
     IMMDeviceCollection_Release(pDeviceCollection);
 #else
     // The MMDevice API is only supported on desktop applications. For now, while I'm still figuring out how to properly enumerate
     // over devices without using MMDevice, I'm restricting devices to defaults.
-    if (infoSize > 0) {
-        if (type == mal_device_type_playback) {
-            mal_copy_memory(pInfo->id.wasapi, &g_malIID_DEVINTERFACE_AUDIO_RENDER, sizeof(g_malIID_DEVINTERFACE_AUDIO_RENDER));
-            mal_strncpy_s(pInfo->name, sizeof(pInfo->name), "Default Playback Device", (size_t)-1);
-        } else {
-            mal_copy_memory(pInfo->id.wasapi, &g_malIID_DEVINTERFACE_AUDIO_CAPTURE, sizeof(g_malIID_DEVINTERFACE_AUDIO_CAPTURE));
-            mal_strncpy_s(pInfo->name, sizeof(pInfo->name), "Default Capture Device", (size_t)-1);
-        }
-    }
+    if (pInfo != NULL) {
+        if (infoSize > 0) {
+            if (type == mal_device_type_playback) {
+                mal_copy_memory(pInfo->id.wasapi, &g_malIID_DEVINTERFACE_AUDIO_RENDER, sizeof(g_malIID_DEVINTERFACE_AUDIO_RENDER));
+                mal_strncpy_s(pInfo->name, sizeof(pInfo->name), "Default Playback Device", (size_t)-1);
+            } else {
+                mal_copy_memory(pInfo->id.wasapi, &g_malIID_DEVINTERFACE_AUDIO_CAPTURE, sizeof(g_malIID_DEVINTERFACE_AUDIO_CAPTURE));
+                mal_strncpy_s(pInfo->name, sizeof(pInfo->name), "Default Capture Device", (size_t)-1);
+            }
 
-    pInfo += 1;
-    *pCount += 1;
+            pInfo += 1;
+            *pCount += 1;
+        }
+    } else {
+        *pCount += 1;
+    }
 #endif
 
     return MAL_SUCCESS;
@@ -4436,34 +4453,42 @@ static mal_result mal_enumerate_devices__winmm(mal_context* pContext, mal_device
     if (type == mal_device_type_playback) {
         UINT deviceCount = ((MAL_PFN_waveOutGetNumDevs)pContext->winmm.waveOutGetNumDevs)();
         for (UINT iDevice = 0; iDevice < deviceCount; ++iDevice) {
-            if (pInfo != NULL && *pCount < infoSize) {
-                mal_uint32 iInfo = *pCount;
+            if (pInfo != NULL) {
+                if (infoSize > 0) {
+                    WAVEOUTCAPSA caps;
+                    MMRESULT result = ((MAL_PFN_waveOutGetDevCapsA)pContext->winmm.waveOutGetDevCapsA)(iDevice, &caps, sizeof(caps));
+                    if (result == MMSYSERR_NOERROR) {
+                        pInfo->id.winmm = iDevice;
+                        mal_strncpy_s(pInfo->name, sizeof(pInfo->name), caps.szPname, (size_t)-1);
+                    }
 
-                WAVEOUTCAPSA caps;
-                MMRESULT result = ((MAL_PFN_waveOutGetDevCapsA)pContext->winmm.waveOutGetDevCapsA)(iDevice, &caps, sizeof(caps));
-                if (result == MMSYSERR_NOERROR) {
-                    pInfo[iInfo].id.winmm = iDevice;
-                    mal_strncpy_s(pInfo[iInfo].name, sizeof(pInfo[iInfo].name), caps.szPname, (size_t)-1);
+                    pInfo += 1;
+                    infoSize -= 1;
+                    *pCount += 1;
                 }
+            } else {
+                *pCount += 1;
             }
-
-            *pCount += 1;
         }
     } else {
         UINT deviceCount = ((MAL_PFN_waveInGetNumDevs)pContext->winmm.waveInGetNumDevs)();
         for (UINT iDevice = 0; iDevice < deviceCount; ++iDevice) {
-            if (pInfo != NULL && *pCount < infoSize) {
-                mal_uint32 iInfo = *pCount;
+            if (pInfo != NULL) {
+                if (infoSize > 0) {
+                    WAVEINCAPSA caps;
+                    MMRESULT result = ((MAL_PFN_waveInGetDevCapsA)pContext->winmm.waveInGetDevCapsA)(iDevice, &caps, sizeof(caps));
+                    if (result == MMSYSERR_NOERROR) {
+                        pInfo->id.winmm = iDevice;
+                        mal_strncpy_s(pInfo->name, sizeof(pInfo->name), caps.szPname, (size_t)-1);
+                    }
 
-                WAVEINCAPSA caps;
-                MMRESULT result = ((MAL_PFN_waveInGetDevCapsA)pContext->winmm.waveInGetDevCapsA)(iDevice, &caps, sizeof(caps));
-                if (result == MMSYSERR_NOERROR) {
-                    pInfo[iInfo].id.winmm = iDevice;
-                    mal_strncpy_s(pInfo[iInfo].name, sizeof(pInfo[iInfo].name), caps.szPname, (size_t)-1);
+                    pInfo += 1;
+                    infoSize -= 1;
+                    *pCount += 1;
                 }
+            } else {
+                *pCount += 1;
             }
-
-            *pCount += 1;
         }
     }
     
@@ -5657,7 +5682,7 @@ static mal_result mal_enumerate_devices__alsa(mal_context* pContext, mal_device_
             includeThisDevice = MAL_TRUE;
 
             // Exclude the "null" device if requested.
-            if (strcmp(NAME, "null") == 0 && !pContext->config.alsa.includeNullDevice) {
+            if (strcmp(NAME, "null") == 0 && pContext->config.alsa.excludeNullDevice) {
                 includeThisDevice = MAL_FALSE;
             }
         } else {
@@ -5677,15 +5702,26 @@ static mal_result mal_enumerate_devices__alsa(mal_context* pContext, mal_device_
 
             char hwid2[256];
             mal_convert_device_name_to_hw_format__alsa(pContext, hwid2, sizeof(hwid2), NAME);
-            printf("DEVICE ID: %s\n\n", hwid2);
+            printf("DEVICE ID: %s (%d)\n\n", hwid2, *pCount);
 #endif
 
             char hwid[sizeof(pUniqueIDs->alsa)];
             if (NAME != NULL) {
                 if (pContext->config.alsa.useVerboseDeviceEnumeration) {
+                    // Verbose mode. Use the name exactly as-is.
                     mal_strncpy_s(hwid, sizeof(hwid), NAME, (size_t)-1);
                 } else {
-                    if (mal_convert_device_name_to_hw_format__alsa(pContext, hwid, sizeof(hwid), NAME) != 0) {
+                    // Simplified mode. Use ":%d,%d" format.
+                    if (mal_convert_device_name_to_hw_format__alsa(pContext, hwid, sizeof(hwid), NAME) == 0) {
+                        // At this point, hwid looks like "hw:0,0". In simplified enumeration mode, we actually want to strip off the
+                        // plugin name so it looks like ":0,0". The reason for this is that this special format is detected at device
+                        // initialization time and is used as an indicator to try and use the most appropriate plugin depending on the
+                        // device type and sharing mode.
+                        char* dst = hwid;
+                        char* src = hwid+2;
+                        while ((*dst++ = *src++));
+                    } else {
+                        // Conversion to "hw:%d,%d" failed. Just use the name as-is.
                         mal_strncpy_s(hwid, sizeof(hwid), NAME, (size_t)-1);
                     }
 
@@ -5745,10 +5781,11 @@ static mal_result mal_enumerate_devices__alsa(mal_context* pContext, mal_device_
                     
                     pInfo += 1;
                     infoSize -= 1;
+                    *pCount += 1;
                 }
+            } else {
+                *pCount += 1;
             }
-
-            *pCount += 1;
         }
 
     next_device:
@@ -5785,58 +5822,103 @@ static mal_result mal_device_init__alsa(mal_context* pContext, mal_device_type t
     mal_zero_object(&pDevice->alsa);
 
     snd_pcm_format_t formatALSA = mal_convert_mal_format_to_alsa_format(pConfig->format);
-
-
-    char deviceName[256];
-    if (pDeviceID == NULL) {
-        mal_strncpy_s(deviceName, sizeof(deviceName), "default", (size_t)-1);
-    } else {
-        if (!pConfig->alsa.preferPlugHW) {
-            mal_strncpy_s(deviceName, sizeof(deviceName), pDeviceID->alsa, (size_t)-1);
-        } else {
-            // The client is preferencing a "plug" device, so we need to convert the device name to "plughw:%d,%d" format.
-            deviceName[0] = 'p';
-            deviceName[1] = 'l';
-            deviceName[2] = 'u';
-            deviceName[3] = 'g';
-            if (mal_convert_device_name_to_hw_format__alsa(pContext, deviceName+4, sizeof(deviceName)-4, pDeviceID->alsa) != 0) {
-                // Failed to convert to "hw:%d,%d" format. It could be set to "default", "pulse", "null", etc. This is not a critical error - just keep using the original name.
-                mal_strncpy_s(deviceName, sizeof(deviceName), pDeviceID->alsa, (size_t)-1);
-            }
-        }
-    }
-
-    // When opening the device, we first try opening it based on the name provided in deviceName. If this fails, fall back to the "hw:%d,%d".
     snd_pcm_stream_t stream = (type == mal_device_type_playback) ? SND_PCM_STREAM_PLAYBACK : SND_PCM_STREAM_CAPTURE;
-    if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, deviceName, stream, 0) < 0) {
-        //printf("Failed first attempt at opening device.\n");
-        if (mal_strcmp(deviceName, "default") == 0 || mal_strcmp(deviceName, "pulse") == 0) {
-            // We may have failed to open the default device. Try falling back to the "hw" or "plughw" device, depending on preferences.
-            if (pConfig->alsa.preferPlugHW) {
-                mal_strncpy_s(deviceName, sizeof(deviceName), "plughw:0,0", (size_t)-1);
-            } else {
-                mal_strncpy_s(deviceName, sizeof(deviceName), "hw:0,0", (size_t)-1);
-            }
 
-            if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, deviceName, stream, 0) < 0) {
-                mal_device_uninit__alsa(pDevice);
-                return mal_post_error(pDevice, "[ALSA] snd_pcm_open() failed when trying to open the default device.", MAL_ALSA_FAILED_TO_OPEN_DEVICE);
-            }
+    if (pDeviceID == NULL) {
+        // We're opening the default device. I don't know if trying anything other than "default" is necessary, but it makes
+        // me feel better to try as hard as we can get to get _something_ working.
+        const char* defaultDeviceNames[] = {
+            "default",
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        };
+
+        if (pConfig->preferExclusiveMode) {
+            defaultDeviceNames[1] = "hw";
+            defaultDeviceNames[2] = "hw:0";
+            defaultDeviceNames[3] = "hw:0,0";
         } else {
-            // Try falling back to "hw:%d,%d" format.
-            char hwid[256];
-            if (mal_convert_device_name_to_hw_format__alsa(pContext, hwid, sizeof(hwid), deviceName) != 0) {
-                mal_device_uninit__alsa(pDevice);
-                return mal_post_error(pDevice, "[ALSA] snd_pcm_open() failed.", MAL_ALSA_FAILED_TO_OPEN_DEVICE);
+            if (type == mal_device_type_playback) {
+                defaultDeviceNames[1] = "dmix";
+                defaultDeviceNames[2] = "dmix:0";
+                defaultDeviceNames[3] = "dmix:0,0";
             } else {
-                if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, hwid, stream, 0) < 0) {
-                    mal_device_uninit__alsa(pDevice);
-                    return mal_post_error(pDevice, "[ALSA] snd_pcm_open() failed.", MAL_ALSA_FAILED_TO_OPEN_DEVICE);
+                defaultDeviceNames[1] = "dsnoop";
+                defaultDeviceNames[2] = "dsnoop:0";
+                defaultDeviceNames[3] = "dsnoop:0,0";
+            }
+            defaultDeviceNames[4] = "hw";
+            defaultDeviceNames[5] = "hw:0";
+            defaultDeviceNames[6] = "hw:0,0";
+        }
+
+        mal_bool32 isDeviceOpen = MAL_FALSE;
+        for (size_t i = 0; i < mal_countof(defaultDeviceNames); ++i) {
+            if (defaultDeviceNames[i] != NULL && defaultDeviceNames[i][0] != '\0') {
+                if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, defaultDeviceNames[i], stream, 0) == 0) {
+                    isDeviceOpen = MAL_TRUE;
+                    break;
                 }
             }
         }
-    }
 
+        if (!isDeviceOpen) {
+            mal_device_uninit__alsa(pDevice);
+            return mal_post_error(pDevice, "[ALSA] snd_pcm_open() failed when trying to open an appropriate default device.", MAL_ALSA_FAILED_TO_OPEN_DEVICE);
+        }
+    } else {
+        // We're trying to open a specific device. There's a few things to consider here:
+        //
+        // mini_al recongnizes a special format of device id that excludes the "hw", "dmix", etc. prefix. It looks like this: ":0,0", ":0,1", etc. When
+        // an ID of this format is specified, it indicates to mini_al that it can try different combinations of plugins ("hw", "dmix", etc.) until it
+        // finds an appropriate one that works. This comes in very handy when trying to open a device in shared mode ("dmix"), vs exclusive mode ("hw").
+        mal_bool32 isDeviceOpen = MAL_FALSE;
+        if (pDeviceID->alsa[0] != ':') {
+            // The ID is not in ":0,0" format. Use the ID exactly as-is.
+            if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, pDeviceID->alsa, stream, 0) == 0) {
+                isDeviceOpen = MAL_TRUE;
+            }
+        } else {
+            // The ID is in ":0,0" format. Try different plugins depending on the shared mode.
+            if (pDeviceID->alsa[1] == '\0') {
+                pDeviceID->alsa[0] = '\0';  // An ID of ":" should be converted to "".
+            }
+
+            char hwid[256];
+            if (!pConfig->preferExclusiveMode) {
+                if (type == mal_device_type_playback) {
+                    mal_strcpy_s(hwid, sizeof(hwid), "dmix");
+                } else {
+                    mal_strcpy_s(hwid, sizeof(hwid), "dsnoop");
+                }
+
+                if (mal_strcat_s(hwid, sizeof(hwid), pDeviceID->alsa) == 0) {
+                    if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, hwid, stream, 0) == 0) {
+                        isDeviceOpen = MAL_TRUE;
+                    }
+                }
+            }
+
+            // If at this point we still don't have an open device it means we're either preferencing exclusive mode or opening with "dmix"/"dsnoop" failed.
+            if (!isDeviceOpen) {
+                mal_strcpy_s(hwid, sizeof(hwid), "hw");
+                if (mal_strcat_s(hwid, sizeof(hwid), pDeviceID->alsa) == 0) {
+                    if (((mal_snd_pcm_open_proc)pContext->alsa.snd_pcm_open)((snd_pcm_t**)&pDevice->alsa.pPCM, hwid, stream, 0) == 0) {
+                        isDeviceOpen = MAL_TRUE;
+                    }
+                }
+            }
+        }
+
+        if (!isDeviceOpen) {
+            mal_device_uninit__alsa(pDevice);
+            return mal_post_error(pDevice, "[ALSA] snd_pcm_open() failed.", MAL_ALSA_FAILED_TO_OPEN_DEVICE);
+        }
+    }
 
 
     // Hardware parameters.
@@ -5948,14 +6030,6 @@ static mal_result mal_device_init__alsa(mal_context* pContext, mal_device_type t
     pDevice->internalSampleRate = sampleRate;
 
 
-    // Buffer Size
-    snd_pcm_uframes_t actualBufferSize = pDevice->bufferSizeInFrames;
-    if (((mal_snd_pcm_hw_params_set_buffer_size_near_proc)pContext->alsa.snd_pcm_hw_params_set_buffer_size_near)((snd_pcm_t*)pDevice->alsa.pPCM, pHWParams, &actualBufferSize) < 0) {
-        mal_device_uninit__alsa(pDevice);
-        return mal_post_error(pDevice, "[ALSA] Failed to set buffer size for device. snd_pcm_hw_params_set_buffer_size() failed.", MAL_FORMAT_NOT_SUPPORTED);
-    }
-    pDevice->bufferSizeInFrames = actualBufferSize;
-
     // Periods.
     mal_uint32 periods = pConfig->periods;
     int dir = 0;
@@ -5965,7 +6039,15 @@ static mal_result mal_device_init__alsa(mal_context* pContext, mal_device_type t
     }
     pDevice->periods = periods;
 
+    // Buffer Size
+    snd_pcm_uframes_t actualBufferSize = pDevice->bufferSizeInFrames;
+    if (((mal_snd_pcm_hw_params_set_buffer_size_near_proc)pContext->alsa.snd_pcm_hw_params_set_buffer_size_near)((snd_pcm_t*)pDevice->alsa.pPCM, pHWParams, &actualBufferSize) < 0) {
+        mal_device_uninit__alsa(pDevice);
+        return mal_post_error(pDevice, "[ALSA] Failed to set buffer size for device. snd_pcm_hw_params_set_buffer_size() failed.", MAL_FORMAT_NOT_SUPPORTED);
+    }
+    pDevice->bufferSizeInFrames = actualBufferSize;
 
+    
     // Apply hardware parameters.
     if (((mal_snd_pcm_hw_params_proc)pContext->alsa.snd_pcm_hw_params)((snd_pcm_t*)pDevice->alsa.pPCM, pHWParams) < 0) {
         mal_device_uninit__alsa(pDevice);
@@ -6008,19 +6090,49 @@ static mal_result mal_device_init__alsa(mal_context* pContext, mal_device_type t
         pDevice->alsa.pIntermediaryBuffer = mal_malloc(pDevice->bufferSizeInFrames * pDevice->channels * mal_get_sample_size_in_bytes(pDevice->format));
         if (pDevice->alsa.pIntermediaryBuffer == NULL) {
             mal_device_uninit__alsa(pDevice);
-            return mal_post_error(pDevice, "[ALSA] Failed to set software parameters. snd_pcm_sw_params() failed.", MAL_OUT_OF_MEMORY);
+            return mal_post_error(pDevice, "[ALSA] Failed to allocate memory for intermediary buffer.", MAL_OUT_OF_MEMORY);
         }
     }
     
     
-    
+
     // Grab the internal channel map. For now we're not going to bother trying to change the channel map and
     // instead just do it ourselves.
     snd_pcm_chmap_t* pChmap = ((mal_snd_pcm_get_chmap_proc)pContext->alsa.snd_pcm_get_chmap)((snd_pcm_t*)pDevice->alsa.pPCM);
     if (pChmap != NULL) {
-        mal_assert(pChmap->channels == pDevice->internalChannels);
-        for (mal_uint32 iChannel = 0; iChannel < pDevice->internalChannels; ++iChannel) {
-            pDevice->internalChannelMap[iChannel] = mal_convert_alsa_channel_position_to_mal_channel(pChmap->pos[iChannel]);
+        // There are cases where the returned channel map can have a different channel count than was returned by snd_pcm_hw_params_set_channels_near().
+        if (pChmap->channels >= pDevice->internalChannels) {
+            // Drop excess channels.
+            for (mal_uint32 iChannel = 0; iChannel < pDevice->internalChannels; ++iChannel) {
+                pDevice->internalChannelMap[iChannel] = mal_convert_alsa_channel_position_to_mal_channel(pChmap->pos[iChannel]);
+            }
+        } else {
+            // Excess channels use defaults. Do an initial fill with defaults, overwrite the first pChmap->channels, validate to ensure there are no duplicate
+            // channels. If validation fails, fall back to defaults.
+            
+            // Fill with defaults.
+            mal_get_default_channel_mapping(pDevice->pContext->backend, pDevice->internalChannels, pDevice->internalChannelMap);
+
+            // Overwrite first pChmap->channels channels.
+            for (mal_uint32 iChannel = 0; iChannel < pChmap->channels; ++iChannel) {
+                pDevice->internalChannelMap[iChannel] = mal_convert_alsa_channel_position_to_mal_channel(pChmap->pos[iChannel]);
+            }
+
+            // Validate.
+            mal_bool32 isValid = MAL_TRUE;
+            for (mal_uint32 i = 0; i < pDevice->internalChannels && isValid; ++i) {
+                for (mal_uint32 j = i+1; j < pDevice->internalChannels; ++j) {
+                    if (pDevice->internalChannelMap[i] == pDevice->internalChannelMap[j]) {
+                        isValid = MAL_FALSE;
+                        break;
+                    }
+                }
+            }
+
+            // If our channel map is invalid, fall back to defaults.
+            if (!isValid) {
+                mal_get_default_channel_mapping(pDevice->pContext->backend, pDevice->internalChannels, pDevice->internalChannelMap);                
+            }
         }
 
         free(pChmap);
@@ -6189,37 +6301,46 @@ static mal_result mal_enumerate_devices__oss(mal_context* pContext, mal_device_t
 
 				if (includeThisDevice) {
 					if (ai.devnode[0] != '\0') {	// <-- Can be blank, according to documentation.
-						if (pInfo != NULL && *pCount < infoSize) {
-							mal_uint32 iInfo = *pCount;
-							mal_strncpy_s(pInfo[iInfo].id.oss, sizeof(pInfo[iInfo].id.oss), ai.devnode, (size_t)-1);
+                        if (pInfo != NULL) {
+                            if (infoSize > 0) {
+                                mal_strncpy_s(pInfo->id.oss, sizeof(pInfo->id.oss), ai.devnode, (size_t)-1);
 							
-							// The human readable device name should be in the "ai.handle" variable, but it can
-							// sometimes be empty in which case we just fall back to "ai.name" which is less user
-							// friendly, but usually has a value.
-							if (ai.handle[0] != '\0') {
-								mal_strncpy_s(pInfo[iInfo].name, sizeof(pInfo[iInfo].name), ai.handle, (size_t)-1);
-							} else {
-								mal_strncpy_s(pInfo[iInfo].name, sizeof(pInfo[iInfo].name), ai.name, (size_t)-1);
-							}
-						}
+							    // The human readable device name should be in the "ai.handle" variable, but it can
+							    // sometimes be empty in which case we just fall back to "ai.name" which is less user
+							    // friendly, but usually has a value.
+							    if (ai.handle[0] != '\0') {
+								    mal_strncpy_s(pInfo->name, sizeof(pInfo->name), ai.handle, (size_t)-1);
+							    } else {
+								    mal_strncpy_s(pInfo->name, sizeof(pInfo->name), ai.name, (size_t)-1);
+							    }
 
-						*pCount += 1;
+                                pInfo += 1;
+                                infoSize -= 1;
+                                *pCount += 1;
+                            }
+                        } else {
+                            *pCount += 1;
+                        }
 					}
 				}
 			}
 		}
 	} else {
 		// Failed to retrieve the system information. Just return a default device for both playback and capture.
-		if (pInfo != NULL && infoSize >= 1) {
-			mal_strncpy_s(pInfo[0].id.oss, sizeof(pInfo[0].id.oss), "/dev/dsp", (size_t)-1);
-			if (type == mal_device_type_playback) {
-				mal_strncpy_s(pInfo[0].name, sizeof(pInfo[0].name), "Default Playback Device", (size_t)-1);
-			} else {
-				mal_strncpy_s(pInfo[0].name, sizeof(pInfo[0].name), "Default Capture Device", (size_t)-1);
-			}
-		}
+		if (pInfo != NULL) {
+            if (infoSize > 0) {
+			    mal_strncpy_s(pInfo[0].id.oss, sizeof(pInfo[0].id.oss), "/dev/dsp", (size_t)-1);
+			    if (type == mal_device_type_playback) {
+				    mal_strncpy_s(pInfo[0].name, sizeof(pInfo[0].name), "Default Playback Device", (size_t)-1);
+			    } else {
+				    mal_strncpy_s(pInfo[0].name, sizeof(pInfo[0].name), "Default Capture Device", (size_t)-1);
+			    }
 
-		*pCount = 1;
+                *pCount = 1;
+            }
+		} else {
+            *pCount = 1;
+        }
 	}
 
 	close(fd);
@@ -6361,12 +6482,9 @@ static mal_result mal_device__start_backend__oss(mal_device* pDevice)
 	// call to read().
 	if (pDevice->type == mal_device_type_playback) {
 		// Playback.
-		mal_uint32 samplesRead = mal_device__read_frames_from_client(pDevice, pDevice->oss.fragmentSizeInFrames, pDevice->oss.pIntermediaryBuffer);
-		if (samplesRead == 0) {
-            return mal_post_error(pDevice, "[OSS] Failed to read initial chunk of data from the client.", MAL_FAILED_TO_READ_DATA_FROM_CLIENT);
-		}
+		mal_device__read_frames_from_client(pDevice, pDevice->oss.fragmentSizeInFrames, pDevice->oss.pIntermediaryBuffer);
 
-		int bytesWritten = write(pDevice->oss.fd, pDevice->oss.pIntermediaryBuffer, samplesRead * mal_get_sample_size_in_bytes(pDevice->internalFormat));
+		int bytesWritten = write(pDevice->oss.fd, pDevice->oss.pIntermediaryBuffer, pDevice->oss.fragmentSizeInFrames * pDevice->internalChannels * mal_get_sample_size_in_bytes(pDevice->internalFormat));
 		if (bytesWritten == -1) {
             return mal_post_error(pDevice, "[OSS] Failed to send initial chunk of data to the device.", MAL_FAILED_TO_SEND_DATA_TO_DEVICE);
 		}
@@ -7436,7 +7554,7 @@ mal_result mal_context_uninit__openal(mal_context* pContext)
 
 mal_result mal_enumerate_devices__openal(mal_context* pContext, mal_device_type type, mal_uint32* pCount, mal_device_info* pInfo)
 {
-    mal_uint32 infoCapacity = *pCount;
+    mal_uint32 infoSize = *pCount;
     *pCount = 0;
 
     const mal_ALCchar* pDeviceNames = ((MAL_LPALCGETSTRING)pContext->openal.alcGetString)(NULL, (type == mal_device_type_playback) ? MAL_ALC_DEVICE_SPECIFIER : MAL_ALC_CAPTURE_DEVICE_SPECIFIER);
@@ -7446,15 +7564,18 @@ mal_result mal_enumerate_devices__openal(mal_context* pContext, mal_device_type 
     
     // Each device is stored in pDeviceNames, separated by a null-terminator. The string itself is double-null-terminated.
     const mal_ALCchar* pNextDeviceName = pDeviceNames;
-    for (;;) {
-        *pCount += 1;
+    while (pNextDeviceName[0] != '\0') {
+        if (pInfo != NULL) {
+            if (infoSize > 0) {
+                mal_strncpy_s(pInfo->id.openal, sizeof(pInfo->id.openal), (const char*)pNextDeviceName, (size_t)-1);
+                mal_strncpy_s(pInfo->name,      sizeof(pInfo->name),      (const char*)pNextDeviceName, (size_t)-1);
 
-        if (pInfo != NULL && infoCapacity > 0) {
-            mal_strncpy_s(pInfo->id.openal, sizeof(pInfo->id.openal), (const char*)pNextDeviceName, (size_t)-1);
-            mal_strncpy_s(pInfo->name,      sizeof(pInfo->name),      (const char*)pNextDeviceName, (size_t)-1);
-
-            pInfo += 1;
-            infoCapacity -= 1;
+                pInfo += 1;
+                infoSize -= 1;
+                *pCount += 1;
+            }
+        } else {
+            *pCount += 1;
         }
 
         // Move to the next device name.
@@ -7462,11 +7583,8 @@ mal_result mal_enumerate_devices__openal(mal_context* pContext, mal_device_type 
             pNextDeviceName += 1;
         }
 
-        // If we've reached the double-null-terminator, we're done.
+        // Skip past the null terminator.
         pNextDeviceName += 1;
-        if (*pNextDeviceName == '\0') {
-            break;
-        }
     };
 
     return MAL_SUCCESS;
@@ -8288,89 +8406,64 @@ mal_result mal_context_init(mal_backend backends[], mal_uint32 backendCount, con
     for (mal_uint32 iBackend = 0; iBackend < backendCount; ++iBackend) {
         mal_backend backend = backends[iBackend];
 
+        result = MAL_NO_BACKEND;
         switch (backend) {
         #ifdef MAL_ENABLE_WASAPI
             case mal_backend_wasapi:
             {
                 result = mal_context_init__wasapi(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_wasapi;
-                    return result;
-                }
             } break;
         #endif
         #ifdef MAL_ENABLE_DSOUND
             case mal_backend_dsound:
             {
                 result = mal_context_init__dsound(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_dsound;
-                    return result;
-                }
             } break;
         #endif
         #ifdef MAL_ENABLE_WINMM
             case mal_backend_winmm:
             {
                 result = mal_context_init__winmm(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_winmm;
-                    return result;
-                }
             } break;
         #endif
         #ifdef MAL_ENABLE_ALSA
             case mal_backend_alsa:
             {
                 result = mal_context_init__alsa(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_alsa;
-                    return result;
-                }
             } break;
         #endif
 		#ifdef MAL_ENABLE_OSS
 			case mal_backend_oss:
 			{
 				result = mal_context_init__oss(pContext);
-				if (result == MAL_SUCCESS) {
-					pContext->backend = mal_backend_oss;
-					return result;
-				}
 			} break;
 		#endif
         #ifdef MAL_ENABLE_OPENSL
             case mal_backend_opensl:
             {
                 result = mal_context_init__opensl(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_opensl;
-                    return result;
-                }
             } break;
         #endif
         #ifdef MAL_ENABLE_OPENAL
             case mal_backend_openal:
             {
                 result = mal_context_init__openal(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_openal;
-                    return result;
-                }
             } break;
         #endif
         #ifdef MAL_ENABLE_NULL
             case mal_backend_null:
             {
                 result = mal_context_init__null(pContext);
-                if (result == MAL_SUCCESS) {
-                    pContext->backend = mal_backend_null;
-                    return result;
-                }
             } break;
         #endif
 
             default: break;
+        }
+
+        // If this iteration was successful, return.
+        if (result == MAL_SUCCESS) {
+            pContext->backend = backend;
+            return result;
         }
     }
 
@@ -10140,16 +10233,24 @@ void mal_pcm_f32_to_s32(int* pOut, const float* pIn, unsigned int count)
 // REVISION HISTORY
 // ================
 //
-// v0.5 - 2017-11-xx
+// v0.5 - 2017-11-11
 //   - API CHANGE: The mal_context_init() function now takes a pointer to a mal_context_config object for
 //     configuring the context. The works in the same kind of way as the device config. The rationale for this
 //     change is to give applications better control over context-level properties, add support for backend-
 //     specific configurations, and support extensibility without breaking the API.
+//   - API CHANGE: The alsa.preferPlugHW device config variable has been removed since it's not really useful for
+//     anything anymore.
 //   - ALSA: By default, device enumeration will now only enumerate over unique card/device pairs. Applications
 //     can enable verbose device enumeration by setting the alsa.useVerboseDeviceEnumeration context config
 //     variable.
-//   - ALSA: By default, the "null" device is excluded from enumeration. This can be changed by setting the
-//     alsa.includeNullDevice context config variable.
+//   - ALSA: When opening a device in shared mode (the default), the dmix/dsnoop plugin will be prioritized. If
+//     this fails it will fall back to the hw plugin. With this change the preferExclusiveMode config is now
+//     honored. Note that this does not happen when alsa.useVerboseDeviceEnumeration is set to true (see above)
+//     which is by design.
+//   - ALSA: Add support for excluding the "null" device using the alsa.excludeNullDevice context config variable.
+//   - ALSA: Fix a bug with channel mapping which causes an assertion to fail.
+//   - Fix errors with enumeration when pInfo is set to NULL.
+//   - OSS: Fix a bug when starting a device when the client sends 0 samples for the initial buffer fill.
 //
 // v0.4 - 2017-11-05
 //   - API CHANGE: The log callback is now per-context rather than per-device and as is thus now passed to

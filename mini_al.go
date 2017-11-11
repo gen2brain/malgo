@@ -303,8 +303,7 @@ func NewDeviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 
 // AlsaDeviceConfig type
 type AlsaDeviceConfig struct {
-	PreferPlugHW uint32
-	NoMMap       uint32
+	NoMMap uint32
 }
 
 // DeviceConfig type
@@ -336,6 +335,7 @@ func NewDeviceConfigFromPointer(ptr unsafe.Pointer) DeviceConfig {
 // AlsaContextConfig type
 type AlsaContextConfig struct {
 	UseVerboseDeviceEnumeration uint32
+	ExcludeNullDevice           uint32
 }
 
 // ContextConfig type
