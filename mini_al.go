@@ -2,7 +2,7 @@
 package mal
 
 /*
-#cgo CFLAGS: -std=gnu99
+#cgo CFLAGS: -std=gnu99 -Iexternal/include
 #cgo linux LDFLAGS: -ldl
 #cgo darwin LDFLAGS: -framework OpenAl
 #cgo android LDFLAGS: -lOpenSLES
