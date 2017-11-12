@@ -4,7 +4,6 @@ package mal
 /*
 #cgo CFLAGS: -std=gnu99 -Iexternal/include
 #cgo linux LDFLAGS: -ldl
-#cgo darwin LDFLAGS: -framework OpenAl
 #cgo android LDFLAGS: -lOpenSLES
 
 #include "mini_al.h"
@@ -18,12 +17,12 @@ void goSetRecvCallback(mal_device* pDevice);
 void goSetSendCallback(mal_device* pDevice);
 void goSetStopCallback(mal_device* pDevice);
 
+mal_device* goGetDevice();
+mal_context* goGetContext();
+
 mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-
-mal_context context;
-mal_device device;
 */
 import "C"
 
@@ -267,8 +266,8 @@ type Device struct {
 // NewDevice returns new Device
 func NewDevice() *Device {
 	d := &Device{}
-	d.context = &C.context
-	d.device = &C.device
+	d.context = C.goGetContext()
+	d.device = C.goGetDevice()
 	return d
 }
 

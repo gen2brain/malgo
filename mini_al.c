@@ -3,6 +3,9 @@
 #define MAL_IMPLEMENTATION
 #include "mini_al.h"
 
+mal_context context;
+mal_device device;
+
 void goSetRecvCallback(mal_device* pDevice) {
 	mal_device_set_recv_callback(pDevice, goRecvCallback);
 }
@@ -13,6 +16,14 @@ void goSetSendCallback(mal_device* pDevice) {
 
 void goSetStopCallback(mal_device* pDevice) {
 	mal_device_set_stop_callback(pDevice, goStopCallback);
+}
+
+mal_device* goGetDevice() {
+    return &device;
+}
+
+mal_context* goGetContext() {
+    return &context;
 }
 
 mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate) {
