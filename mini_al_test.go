@@ -67,6 +67,10 @@ func TestCapturePlayback(t *testing.T) {
 		t.Errorf("wrong samplerate")
 	}
 
+	if device.BufferSizeInBytes() != device.BufferSizeInFrames()*device.Channels()*device.SampleSizeInBytes(device.Format()) {
+		t.Fatalf("wrong buffer size")
+	}
+
 	err = device.Start()
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +102,6 @@ func TestCapturePlayback(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	device.Stop()
 	device.Uninit()
 }
 
@@ -162,5 +165,12 @@ func TestConfigInit(t *testing.T) {
 	device.SetSendCallback(onSendFrames)
 	device.SetStopCallback(onStop)
 
+	device.Start()
+
+	if !device.IsStarted() {
+		t.Fatalf("device not started")
+	}
+
+	device.Stop()
 	device.Uninit()
 }
