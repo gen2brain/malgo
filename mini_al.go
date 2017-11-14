@@ -290,11 +290,6 @@ func (d *DeviceInfo) String() string {
 	return fmt.Sprintf("{ID: %s, Name: %s}", string(d.ID[:]), string(d.Name[:]))
 }
 
-// cptr return C pointer
-func (d *DeviceInfo) cptr() *C.mal_device_info {
-	return (*C.mal_device_info)(unsafe.Pointer(d))
-}
-
 // NewDeviceInfoFromPointer returns new DeviceInfo from pointer
 func NewDeviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 	return *(*DeviceInfo)(ptr)
@@ -341,16 +336,6 @@ type AlsaContextConfig struct {
 type ContextConfig struct {
 	OnLogCallback *[0]byte
 	Alsa          AlsaContextConfig
-}
-
-// cptr return C pointer
-func (c *ContextConfig) cptr() *C.mal_context_config {
-	return (*C.mal_context_config)(unsafe.Pointer(c))
-}
-
-// NewContextConfigFromPointer returns new ContextConfig from pointer
-func NewContextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
-	return *(*ContextConfig)(ptr)
 }
 
 // RecvProc type
