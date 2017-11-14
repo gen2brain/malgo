@@ -3238,7 +3238,7 @@ static mal_result mal_device_init__wasapi(mal_context* pContext, mal_device_type
 
     HRESULT hr;
     mal_result result = MAL_SUCCESS;
-    const char* errorMsg = "";
+    char* errorMsg = "";
     AUDCLNT_SHAREMODE shareMode = AUDCLNT_SHAREMODE_SHARED;
 
     WAVEFORMATEXTENSIBLE wf;
@@ -4528,7 +4528,7 @@ static mal_result mal_device_init__winmm(mal_context* pContext, mal_device_type 
         winMMDeviceID = (UINT)pDeviceID->winmm;
     }
 
-    const char* errorMsg = "";
+    char* errorMsg = "";
     mal_result errorCode = MAL_ERROR;
 
 

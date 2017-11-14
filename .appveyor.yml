@@ -19,4 +19,4 @@ install:
   - go env
 
 build_script:
-  - bash -lc "cd /c/gopath/src/github.com/gen2brain/malgo && go build"
+  - bash -lc "cd /c/gopath/src/github.com/gen2brain/malgo && go test -v ./"
