@@ -1,6 +1,8 @@
 package mal
 
 import (
+	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 )
@@ -127,7 +129,9 @@ func TestEnumerate(t *testing.T) {
 		t.Errorf("empty playback device info")
 	}
 
-	_ = infosPlayback[0].String()
+	for _, i := range infosPlayback {
+		fmt.Fprintf(ioutil.Discard, i.String())
+	}
 
 	infosCapture, err := device.EnumerateDevices(Capture)
 	if err != nil {
@@ -182,5 +186,63 @@ func TestConfigInit(t *testing.T) {
 	}
 
 	device.Stop()
+	device.Uninit()
+}
+
+func TestErrors(t *testing.T) {
+	device := NewDevice()
+
+	err := device.ContextInit([]Backend{Backend(99)}, ContextConfig{})
+	if err == nil {
+		t.Fatalf("context init with invalid backend")
+	}
+
+	err = device.ContextInit([]Backend{BackendNull}, ContextConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
+		return 0
+	}
+
+	config := device.ConfigInitPlayback(FormatType(99), 99, 48000, nil)
+
+	err = device.Init(Playback, nil, &config)
+	if err == nil {
+		t.Fatalf("device init with invalid config")
+	}
+
+	config = device.ConfigInitPlayback(FormatS16, 2, 48000, onSendFrames)
+
+	err = device.Init(Playback, nil, &config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = device.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = device.Start()
+	if err == nil {
+		t.Fatalf("device start but already started")
+	}
+
+	time.Sleep(1 * time.Second)
+
+	err = device.Stop()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = device.Stop()
+	if err == nil {
+		t.Fatalf("device stop but already stopped")
+	}
+
+	device.ContextUninit()
+
 	device.Uninit()
 }
