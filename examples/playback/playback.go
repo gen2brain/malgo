@@ -70,7 +70,7 @@ func main() {
 		return uint32(n) / device.Channels() / device.SampleSizeInBytes(device.Format())
 	}
 
-	err = device.ContextInit(nil, true)
+	err = device.ContextInit(nil, mal.ContextConfig{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

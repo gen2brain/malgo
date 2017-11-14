@@ -37,3 +37,7 @@ mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, ma
 mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate) {
     return mal_device_config_init(format, channels, sampleRate, NULL, goSendCallback);
 }
+
+mal_context_config goContextConfigInit() {
+    return mal_context_config_init(goLogCallback);
+}

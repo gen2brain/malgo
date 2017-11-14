@@ -396,7 +396,7 @@ typedef int mal_result;
 typedef struct mal_context mal_context;
 typedef struct mal_device mal_device;
 
-typedef void       (* mal_log_proc) (mal_context* pContext, mal_device* pDevice, const char* message);
+typedef void       (* mal_log_proc) (mal_context* pContext, mal_device* pDevice, char* message);
 typedef void       (* mal_recv_proc)(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 typedef mal_uint32 (* mal_send_proc)(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 typedef void       (* mal_stop_proc)(mal_device* pDevice);
@@ -2218,7 +2218,7 @@ mal_bool32 mal_event_signal(mal_context* pContext, mal_event* pEvent)
 
 
 // Posts a log message.
-static void mal_log(mal_context* pContext, mal_device* pDevice, const char* message)
+static void mal_log(mal_context* pContext, mal_device* pDevice, char* message)
 {
     if (pContext == NULL) return;
 
@@ -2229,7 +2229,7 @@ static void mal_log(mal_context* pContext, mal_device* pDevice, const char* mess
 }
 
 // Posts an error. Throw a breakpoint in here if you're needing to debug. The return value is always "resultCode".
-static mal_result mal_context_post_error(mal_context* pContext, mal_device* pDevice, const char* message, mal_result resultCode)
+static mal_result mal_context_post_error(mal_context* pContext, mal_device* pDevice, char* message, mal_result resultCode)
 {
     // Derive the context from the device if necessary.
     if (pContext == NULL) {
@@ -2242,7 +2242,7 @@ static mal_result mal_context_post_error(mal_context* pContext, mal_device* pDev
     return resultCode;
 }
 
-static mal_result mal_post_error(mal_device* pDevice, const char* message, mal_result resultCode)
+static mal_result mal_post_error(mal_device* pDevice, char* message, mal_result resultCode)
 {
     return mal_context_post_error(NULL, pDevice, message, resultCode);
 }

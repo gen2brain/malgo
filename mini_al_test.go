@@ -37,7 +37,7 @@ func TestCapturePlayback(t *testing.T) {
 		return samplesToRead / device.Channels() / sizeInBytes
 	}
 
-	err := device.ContextInit([]Backend{BackendNull}, true)
+	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,28 +108,33 @@ func TestCapturePlayback(t *testing.T) {
 func TestEnumerate(t *testing.T) {
 	device := NewDevice()
 
-	err := device.ContextInit([]Backend{BackendNull}, false)
+	config := device.ContextConfigInit(nil)
+	config.Alsa.UseVerboseDeviceEnumeration = 1
+
+	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer device.ContextUninit()
 
-	infos, err := device.EnumerateDevices(Playback)
+	infosPlayback, err := device.EnumerateDevices(Playback)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if len(infos) == 0 {
+	if len(infosPlayback) == 0 {
 		t.Errorf("empty playback device info")
 	}
 
-	infos, err = device.EnumerateDevices(Capture)
+	_ = infosPlayback[0].String()
+
+	infosCapture, err := device.EnumerateDevices(Capture)
 	if err != nil {
 		t.Error(err)
 	}
 
-	if len(infos) == 0 {
+	if len(infosCapture) == 0 {
 		t.Errorf("empty capture device info")
 	}
 }
@@ -147,7 +152,12 @@ func TestConfigInit(t *testing.T) {
 	onStop := func() {
 	}
 
-	err := device.ContextInit([]Backend{BackendNull}, false)
+	onLog := func(message string) {
+	}
+
+	contextConfig := device.ContextConfigInit(onLog)
+
+	err := device.ContextInit([]Backend{BackendNull}, contextConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

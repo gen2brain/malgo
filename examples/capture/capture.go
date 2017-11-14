@@ -40,7 +40,7 @@ func main() {
 		return samplesToRead / device.Channels() / sizeInBytes
 	}
 
-	err := device.ContextInit(nil, false)
+	err := device.ContextInit(nil, mal.ContextConfig{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -23,6 +23,8 @@ mal_context* goGetContext();
 mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
+
+mal_context_config goContextConfigInit();
 */
 import "C"
 
@@ -338,6 +340,16 @@ type ContextConfig struct {
 	Alsa          AlsaContextConfig
 }
 
+// cptr return C pointer
+func (d *ContextConfig) cptr() *C.mal_context_config {
+	return (*C.mal_context_config)(unsafe.Pointer(d))
+}
+
+// NewContextConfigFromPointer returns new ContextConfig from pointer
+func NewContextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
+	return *(*ContextConfig)(ptr)
+}
+
 // RecvProc type
 type RecvProc func(framecount uint32, psamples []byte)
 
@@ -347,11 +359,15 @@ type SendProc func(framecount uint32, psamples []byte) uint32
 // StopProc type
 type StopProc func()
 
+// LogProc type
+type LogProc func(message string)
+
 // Handlers
 var (
 	recvHandler RecvProc
 	sendHandler SendProc
 	stopHandler StopProc
+	logHandler  LogProc
 )
 
 //export goRecvCallback
@@ -384,7 +400,9 @@ func goStopCallback(pDevice *C.mal_device) {
 
 //export goLogCallback
 func goLogCallback(pContext *C.mal_context, pDevice *C.mal_device, message *C.char) {
-	fmt.Printf("%s:%s\n", errTag, C.GoString(message))
+	if logHandler != nil {
+		logHandler(C.GoString(message))
+	}
 }
 
 // ContextInit initializes a context.
@@ -403,19 +421,12 @@ func goLogCallback(pContext *C.mal_context, pDevice *C.mal_device, message *C.ch
 //   - Null
 //
 // This will dynamically load backends DLLs/SOs (such as dsound.dll).
-func (d *Device) ContextInit(backends []Backend, logging bool) error {
+func (d *Device) ContextInit(backends []Backend, config ContextConfig) error {
 	cbackends := (*C.mal_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
 	cbackendcount := (C.mal_uint32)(len(backends))
+	cconfig := config.cptr()
 
-	var ret C.mal_result
-	if logging {
-		config := C.mal_context_config_init((*[0]byte)(C.goRecvCallback))
-		ret = C.mal_context_init(cbackends, cbackendcount, &config, d.context)
-	} else {
-		config := C.mal_context_config_init(nil)
-		ret = C.mal_context_init(cbackends, cbackendcount, &config, d.context)
-	}
-
+	ret := C.mal_context_init(cbackends, cbackendcount, cconfig, d.context)
 	v := (Result)(ret)
 	return errorFromResult(v)
 }
@@ -583,6 +594,15 @@ func (d *Device) ConfigInitPlayback(format FormatType, channels uint32, samplera
 
 	ret := C.goConfigInitPlayback(cformat, cchannels, csamplerate)
 	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	return v
+}
+
+// ContextConfigInit is a helper function for initializing a ContextConfig object.
+func (d *Device) ContextConfigInit(onlogcallback LogProc) ContextConfig {
+	logHandler = onlogcallback
+
+	ret := C.goContextConfigInit()
+	v := NewContextConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
