@@ -39,7 +39,13 @@ func TestCapturePlayback(t *testing.T) {
 		return samplesToRead / device.Channels() / sizeInBytes
 	}
 
-	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
+	onLog := func(message string) {
+		fmt.Fprintf(ioutil.Discard, message)
+	}
+
+	contextConfig := device.ContextConfigInit(onLog)
+
+	err := device.ContextInit([]Backend{BackendNull}, contextConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,36 +162,36 @@ func TestConfigInit(t *testing.T) {
 	onStop := func() {
 	}
 
-	onLog := func(message string) {
-	}
-
-	contextConfig := device.ContextConfigInit(onLog)
-
-	err := device.ContextInit([]Backend{BackendNull}, contextConfig)
+	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInit(FormatS16, 2, 48000, nil, nil)
+	config := device.ConfigInit(FormatS16, 2, 48000, onRecvFrames, onSendFrames)
 
-	err = device.Init(Capture, nil, &config)
+	err = device.Init(Playback, nil, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	device.SetRecvCallback(onRecvFrames)
-	device.SetSendCallback(onSendFrames)
 	device.SetStopCallback(onStop)
 
-	device.Start()
+	err = device.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !device.IsStarted() {
 		t.Fatalf("device not started")
 	}
 
-	device.Stop()
+	err = device.Stop()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	device.Uninit()
 }
 
