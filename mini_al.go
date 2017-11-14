@@ -2,7 +2,7 @@
 package mal
 
 /*
-#cgo CFLAGS: -std=gnu99 -Iexternal/include
+#cgo CFLAGS: -std=gnu99 -Iexternal/include -Wno-pointer-to-int-cast
 #cgo linux LDFLAGS: -ldl
 #cgo android LDFLAGS: -lOpenSLES
 
