@@ -49,6 +49,7 @@ func main() {
 	defer device.ContextUninit()
 
 	config := device.ConfigInit(mal.FormatS16, 2, 48000, onRecvFrames, onSendFrames)
+	config.Alsa.NoMMap = 1
 
 	fmt.Println("Recording...")
 	err = device.Init(mal.Capture, nil, &config)

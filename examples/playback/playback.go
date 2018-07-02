@@ -61,7 +61,7 @@ func main() {
 	device := mal.NewDevice()
 
 	// This is the function that's used for sending more data to the device for playback.
-	onSendFrames := func(framecount uint32, psamples []byte) uint32 {
+	onSendSamples := func(framecount uint32, psamples []byte) uint32 {
 		n, err := reader.Read(psamples)
 		if err == io.EOF {
 			return 0
@@ -78,7 +78,8 @@ func main() {
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInitPlayback(mal.FormatS16, channels, sampleRate, onSendFrames)
+	config := device.ConfigInitPlayback(mal.FormatS16, channels, sampleRate, onSendSamples)
+	config.Alsa.NoMMap = 1
 
 	err = device.Init(mal.Playback, nil, &config)
 	if err != nil {

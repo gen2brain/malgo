@@ -2,8 +2,11 @@
 package mal
 
 /*
-#cgo CFLAGS: -std=gnu99 -Iexternal/include -Wno-pointer-to-int-cast
-#cgo linux LDFLAGS: -ldl
+#cgo CFLAGS: -std=gnu99
+#cgo linux LDFLAGS: -ldl -lpthread -lm
+#cgo openbsd LDFLAGS: -lpthread -lm -lossaudio
+#cgo netbsd LDFLAGS: -lpthread -lm -lossaudio
+#cgo freebsd LDFLAGS: -lpthread -lm
 #cgo android LDFLAGS: -lOpenSLES
 
 #include "mini_al.h"
@@ -11,6 +14,7 @@ package mal
 extern void goRecvCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern mal_uint32 goSendCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern void goStopCallback(mal_device* pDevice);
+
 extern void goLogCallback(mal_context* pContext, mal_device* pDevice, char* message);
 
 void goSetRecvCallback(mal_device* pDevice);
@@ -23,6 +27,8 @@ mal_context* goGetContext();
 mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
 mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
+mal_device_config goConfigInitDefaultCapture();
+mal_device_config goConfigInitDefaultPlayback();
 
 mal_context_config goContextConfigInit();
 */
@@ -34,100 +40,84 @@ import (
 	"unsafe"
 )
 
-// Return codes
+// Return codes.
 const (
-	Success                              = 0
-	Error                                = -1
-	InvalidArgs                          = -2
-	OutOfMemory                          = -3
-	FormatNotSupported                   = -4
-	NoBackend                            = -5
-	NoDevice                             = -6
-	APINotFound                          = -7
-	DeviceBusy                           = -8
-	DeviceNotInitialized                 = -9
-	DeviceAlreadyStarted                 = -10
-	DeviceAlreadyStarting                = -11
-	DeviceAlreadyStopped                 = -12
-	DeviceAlreadyStopping                = -13
-	FailedToMapDeviceBuffer              = -14
-	FailedToInitBackend                  = -15
-	FailedToReadDataFromClient           = -16
-	FailedToStartBackendDevice           = -17
-	FailedToStopBackendDevice            = -18
-	FailedToCreateMutex                  = -19
-	FailedToCreateEvent                  = -20
-	FailedToCreateUint                   = -21
-	InvalidDeviceConfig                  = -22
-	DsoundFailedToCreateDevice           = -1024
-	DsoundFailedToSetCoopLevel           = -1025
-	DsoundFailedToCreateBuffer           = -1026
-	DsoundFailedToQueryInterface         = -1027
-	DsoundFailedToSetNotifications       = -1028
-	AlsaFailedToOpenDevice               = -2048
-	AlsaFailedToSetHwParams              = -2049
-	AlsaFailedToSetSwParams              = -2050
-	AlsaFailedToPrepareDevice            = -2051
-	AlsaFailedToRecoverDevice            = -2052
-	WasapiFailedToCreateDeviceEnumerator = -3072
-	WasapiFailedToCreateDevice           = -3073
-	WasapiFailedToActivateDevice         = -3074
-	WasapiFailedToInitializeDevice       = -3075
-	WasapiFailedToFindBestFormat         = -3076
-	WasapiFailedToGetInternalBuffer      = -3077
-	WasapiFailedToReleaseInternalBuffer  = -3078
-	WinmmFailedToGetDeviceCaps           = -4096
-	WinmmFailedToGetSupportedFormats     = -4097
+	Success                        = 0
+	Error                          = -1
+	InvalidArgs                    = -2
+	InvalidOperation               = -3
+	OutOfMemory                    = -4
+	FormatNotSupported             = -5
+	NoBackend                      = -6
+	NoDevice                       = -7
+	APINotFound                    = -8
+	DeviceBusy                     = -9
+	DeviceNotInitialized           = -10
+	DeviceNotStarted               = -11
+	DeviceNotStopped               = -12
+	DeviceAlreadyStarted           = -13
+	DeviceAlreadyStarting          = -14
+	DeviceAlreadyStopped           = -15
+	DeviceAlreadyStopping          = -16
+	FailedToMapDeviceBuffer        = -17
+	FailedToUnmapDeviceBuffer      = -18
+	FailedToInitBackend            = -19
+	FailedToReadDataFromClient     = -20
+	FailedToReadDataFromDevice     = -21
+	FailedToSendDataToClient       = -22
+	FailedToSendDataToDevice       = -23
+	FailedToOpenBackendDevice      = -24
+	FailedToStartBackendDevice     = -25
+	FailedToStopBackendDevice      = -26
+	FailedToConfigureBackendDevice = -27
+	FailedToCreateMutex            = -28
+	FailedToCreateEvent            = -29
+	FailedToCreateThread           = -30
+	InvalidDeviceConfig            = -31
+	AccessDenied                   = -32
+	TooLarge                       = -33
 )
 
-// Errors
+// Errors.
 var (
 	errTag string = "mini_al"
 
-	ErrError                                = fmt.Errorf("%s: generic error", errTag)
-	ErrInvalidArgs                          = fmt.Errorf("%s: invalid args", errTag)
-	ErrOutOfMemory                          = fmt.Errorf("%s: out of memory", errTag)
-	ErrFormatNotSupported                   = fmt.Errorf("%s: format not supported", errTag)
-	ErrNoBackend                            = fmt.Errorf("%s: no backend", errTag)
-	ErrNoDevice                             = fmt.Errorf("%s: no device", errTag)
-	ErrAPINotFound                          = fmt.Errorf("%s: api not found", errTag)
-	ErrDeviceBusy                           = fmt.Errorf("%s: device busy", errTag)
-	ErrDeviceNotInitialized                 = fmt.Errorf("%s: device busy", errTag)
-	ErrDeviceAlreadyStarted                 = fmt.Errorf("%s: device already started", errTag)
-	ErrDeviceAlreadyStarting                = fmt.Errorf("%s: device already starting", errTag)
-	ErrDeviceAlreadyStopped                 = fmt.Errorf("%s: device already stopped", errTag)
-	ErrDeviceAlreadyStopping                = fmt.Errorf("%s: device already stopping", errTag)
-	ErrFailedToMapDeviceBuffer              = fmt.Errorf("%s: failed to map device buffer", errTag)
-	ErrFailedToInitBackend                  = fmt.Errorf("%s: failed to init backend", errTag)
-	ErrFailedToReadDataFromClient           = fmt.Errorf("%s: failed to read data from client", errTag)
-	ErrFailedToStartBackendDevice           = fmt.Errorf("%s: failed to start backend device", errTag)
-	ErrFailedToStopBackendDevice            = fmt.Errorf("%s: failed to stop backend device", errTag)
-	ErrFailedToCreateMutex                  = fmt.Errorf("%s: failed to create mutex", errTag)
-	ErrFailedToCreateEvent                  = fmt.Errorf("%s: failed to create event", errTag)
-	ErrFailedToCreateUint                   = fmt.Errorf("%s: failed to create uint", errTag)
-	ErrInvalidDeviceConfig                  = fmt.Errorf("%s: invalid device config", errTag)
-	ErrDsoundFailedToCreateDevice           = fmt.Errorf("%s: dsound failed to create device", errTag)
-	ErrDsoundFailedToSetCoopLevel           = fmt.Errorf("%s: dsound failed to set coop level", errTag)
-	ErrDsoundFailedToCreateBuffer           = fmt.Errorf("%s: dsound failed to create buffer", errTag)
-	ErrDsoundFailedToQueryInterface         = fmt.Errorf("%s: dsound failed to query interface", errTag)
-	ErrDsoundFailedToSetNotifications       = fmt.Errorf("%s: dsound failed to set notifications", errTag)
-	ErrAlsaFailedToOpenDevice               = fmt.Errorf("%s: alsa failed to open device", errTag)
-	ErrAlsaFailedToSetHwParams              = fmt.Errorf("%s: alsa failed to set hw params", errTag)
-	ErrAlsaFailedToSetSwParams              = fmt.Errorf("%s: alsa failed to set sw params", errTag)
-	ErrAlsaFailedToPrepareDevice            = fmt.Errorf("%s: alsa failed to prepare device", errTag)
-	ErrAlsaFailedToRecoverDevice            = fmt.Errorf("%s: alsa failed to recover device", errTag)
-	ErrWasapiFailedToCreateDeviceEnumerator = fmt.Errorf("%s: wasapi failed to create device enumerator", errTag)
-	ErrWasapiFailedToCreateDevice           = fmt.Errorf("%s: wasapi failed to create device", errTag)
-	ErrWasapiFailedToActivateDevice         = fmt.Errorf("%s: wasapi failed to activate device", errTag)
-	ErrWasapiFailedToInitializeDevice       = fmt.Errorf("%s: wasapi failed to initialize device", errTag)
-	ErrWasapiFailedToFindBestFormat         = fmt.Errorf("%s: wasapi failed to find best format", errTag)
-	ErrWasapiFailedToGetInternalBuffer      = fmt.Errorf("%s: wasapi failed to get internal buffer", errTag)
-	ErrWasapiFailedToReleaseInternalBuffer  = fmt.Errorf("%s: wasapi failed to release internal buffer", errTag)
-	ErrWinmmFailedToGetDeviceCaps           = fmt.Errorf("%s: winmm failed to get device caps", errTag)
-	ErrWinmmFailedToGetSupportedFormats     = fmt.Errorf("%s: winmm failed to get supported formats", errTag)
+	ErrError                          = fmt.Errorf("%s: generic error", errTag)
+	ErrInvalidArgs                    = fmt.Errorf("%s: invalid args", errTag)
+	ErrInvalidOperation               = fmt.Errorf("%s: invalid operation", errTag)
+	ErrOutOfMemory                    = fmt.Errorf("%s: out of memory", errTag)
+	ErrFormatNotSupported             = fmt.Errorf("%s: format not supported", errTag)
+	ErrNoBackend                      = fmt.Errorf("%s: no backend", errTag)
+	ErrNoDevice                       = fmt.Errorf("%s: no device", errTag)
+	ErrAPINotFound                    = fmt.Errorf("%s: api not found", errTag)
+	ErrDeviceBusy                     = fmt.Errorf("%s: device busy", errTag)
+	ErrDeviceNotInitialized           = fmt.Errorf("%s: device busy", errTag)
+	ErrDeviceNotStarted               = fmt.Errorf("%s: device not started", errTag)
+	ErrDeviceNotStopped               = fmt.Errorf("%s: device not stopped", errTag)
+	ErrDeviceAlreadyStarted           = fmt.Errorf("%s: device already started", errTag)
+	ErrDeviceAlreadyStarting          = fmt.Errorf("%s: device already starting", errTag)
+	ErrDeviceAlreadyStopped           = fmt.Errorf("%s: device already stopped", errTag)
+	ErrDeviceAlreadyStopping          = fmt.Errorf("%s: device already stopping", errTag)
+	ErrFailedToMapDeviceBuffer        = fmt.Errorf("%s: failed to map device buffer", errTag)
+	ErrFailedToUnmapDeviceBuffer      = fmt.Errorf("%s: failed to unmap device buffer", errTag)
+	ErrFailedToInitBackend            = fmt.Errorf("%s: failed to init backend", errTag)
+	ErrFailedToReadDataFromClient     = fmt.Errorf("%s: failed to read data from client", errTag)
+	ErrFailedToReadDataFromDevice     = fmt.Errorf("%s: failed to read data from device", errTag)
+	ErrFailedToSendDataToClient       = fmt.Errorf("%s: failed to send data to client", errTag)
+	ErrFailedToSendDataToDevice       = fmt.Errorf("%s: failed to send data to device", errTag)
+	ErrFailedToOpenBackendDevice      = fmt.Errorf("%s: failed to open backend device", errTag)
+	ErrFailedToStartBackendDevice     = fmt.Errorf("%s: failed to start backend device", errTag)
+	ErrFailedToStopBackendDevice      = fmt.Errorf("%s: failed to stop backend device", errTag)
+	ErrFailedToConfigureBackendDevice = fmt.Errorf("%s: failed to configure backend device", errTag)
+	ErrFailedToCreateMutex            = fmt.Errorf("%s: failed to create mutex", errTag)
+	ErrFailedToCreateEvent            = fmt.Errorf("%s: failed to create event", errTag)
+	ErrFailedToCreateThread           = fmt.Errorf("%s: failed to create thread", errTag)
+	ErrInvalidDeviceConfig            = fmt.Errorf("%s: invalid device config", errTag)
+	ErrAccessDenied                   = fmt.Errorf("%s: access denied", errTag)
+	ErrTooLarge                       = fmt.Errorf("%s: too large", errTag)
 )
 
-// errorFromResult returns error for result code
+// errorFromResult returns error for result code.
 func errorFromResult(r Result) error {
 	switch r {
 	case Success:
@@ -136,6 +126,8 @@ func errorFromResult(r Result) error {
 		return ErrError
 	case InvalidArgs:
 		return ErrInvalidArgs
+	case InvalidOperation:
+		return ErrInvalidOperation
 	case OutOfMemory:
 		return ErrOutOfMemory
 	case FormatNotSupported:
@@ -150,6 +142,10 @@ func errorFromResult(r Result) error {
 		return ErrDeviceBusy
 	case DeviceNotInitialized:
 		return ErrDeviceNotInitialized
+	case DeviceNotStarted:
+		return ErrDeviceNotStarted
+	case DeviceNotStopped:
+		return ErrDeviceNotStopped
 	case DeviceAlreadyStarted:
 		return ErrDeviceAlreadyStarted
 	case DeviceAlreadyStarting:
@@ -160,93 +156,93 @@ func errorFromResult(r Result) error {
 		return ErrDeviceAlreadyStopping
 	case FailedToMapDeviceBuffer:
 		return ErrFailedToMapDeviceBuffer
+	case FailedToUnmapDeviceBuffer:
+		return ErrFailedToUnmapDeviceBuffer
 	case FailedToInitBackend:
 		return ErrFailedToInitBackend
 	case FailedToReadDataFromClient:
 		return ErrFailedToReadDataFromClient
+	case FailedToReadDataFromDevice:
+		return ErrFailedToReadDataFromDevice
+	case FailedToSendDataToClient:
+		return ErrFailedToSendDataToClient
+	case FailedToSendDataToDevice:
+		return ErrFailedToSendDataToDevice
+	case FailedToOpenBackendDevice:
+		return ErrFailedToOpenBackendDevice
 	case FailedToStartBackendDevice:
 		return ErrFailedToStartBackendDevice
 	case FailedToStopBackendDevice:
 		return ErrFailedToStopBackendDevice
+	case FailedToConfigureBackendDevice:
+		return ErrFailedToConfigureBackendDevice
 	case FailedToCreateMutex:
 		return ErrFailedToCreateMutex
 	case FailedToCreateEvent:
 		return ErrFailedToCreateEvent
-	case FailedToCreateUint:
-		return ErrFailedToCreateUint
+	case FailedToCreateThread:
+		return ErrFailedToCreateThread
 	case InvalidDeviceConfig:
 		return ErrInvalidDeviceConfig
-	case DsoundFailedToCreateDevice:
-		return ErrDsoundFailedToCreateDevice
-	case DsoundFailedToSetCoopLevel:
-		return ErrDsoundFailedToSetCoopLevel
-	case DsoundFailedToCreateBuffer:
-		return ErrDsoundFailedToCreateBuffer
-	case DsoundFailedToQueryInterface:
-		return ErrDsoundFailedToQueryInterface
-	case DsoundFailedToSetNotifications:
-		return ErrDsoundFailedToSetNotifications
-	case AlsaFailedToOpenDevice:
-		return ErrAlsaFailedToOpenDevice
-	case AlsaFailedToSetHwParams:
-		return ErrAlsaFailedToSetHwParams
-	case AlsaFailedToSetSwParams:
-		return ErrAlsaFailedToSetSwParams
-	case AlsaFailedToPrepareDevice:
-		return ErrAlsaFailedToPrepareDevice
-	case AlsaFailedToRecoverDevice:
-		return ErrAlsaFailedToRecoverDevice
-	case WasapiFailedToCreateDeviceEnumerator:
-		return ErrWasapiFailedToCreateDeviceEnumerator
-	case WasapiFailedToCreateDevice:
-		return ErrWasapiFailedToCreateDevice
-	case WasapiFailedToActivateDevice:
-		return ErrWasapiFailedToActivateDevice
-	case WasapiFailedToInitializeDevice:
-		return ErrWasapiFailedToInitializeDevice
-	case WasapiFailedToFindBestFormat:
-		return ErrWasapiFailedToFindBestFormat
-	case WasapiFailedToGetInternalBuffer:
-		return ErrWasapiFailedToGetInternalBuffer
-	case WasapiFailedToReleaseInternalBuffer:
-		return ErrWasapiFailedToReleaseInternalBuffer
-	case WinmmFailedToGetDeviceCaps:
-		return ErrWinmmFailedToGetDeviceCaps
-	case WinmmFailedToGetSupportedFormats:
-		return ErrWinmmFailedToGetSupportedFormats
+	case AccessDenied:
+		return ErrAccessDenied
+	case TooLarge:
+		return ErrTooLarge
 	default:
 		return ErrError
 	}
 }
 
-// Backend type
+// Backend type.
 type Backend uint32
 
-// Backend enumeration
+// Backend enumeration.
 const (
 	BackendNull Backend = iota
 	BackendWasapi
 	BackendDsound
 	BackendWinmm
 	BackendAlsa
+	BackendPulseAudio
+	BackendJack
+	BackendCoreAudio
 	BackendOss
 	BackendOpensl
 	BackendOpenal
+	BackendSdl
 )
 
-// DeviceType type
+// DeviceType type.
 type DeviceType uint32
 
-// DeviceType enumeration
+// DeviceType enumeration.
 const (
 	Playback DeviceType = iota
 	Capture
 )
 
-// FormatType type
+// ShareMode type.
+type ShareMode uint32
+
+// ShareMode enumeration.
+const (
+	Shared ShareMode = iota
+	Exclusive
+)
+
+// PerformanceProfile type.
+type PerformanceProfile uint32
+
+// PerformanceProfile enumeration.
+const (
+	LowLatency PerformanceProfile = iota
+	Conservative
+)
+
+// FormatType type.
 type FormatType uint32
 
-// Format enumeration
+// Format enumeration.
 const (
 	FormatUnknown FormatType = iota
 	FormatU8
@@ -256,16 +252,31 @@ const (
 	FormatF32
 )
 
-// Result type
+// ThreadPriority type.
+type ThreadPriority int32
+
+// ThreadPriority enumeration.
+const (
+	Idle     ThreadPriority = -5
+	Lowest   ThreadPriority = -4
+	Low      ThreadPriority = -3
+	Normal   ThreadPriority = -2
+	High     ThreadPriority = -1
+	Highest  ThreadPriority = -0
+	Realtime ThreadPriority = -1
+	Default  ThreadPriority = -2
+)
+
+// Result type.
 type Result int32
 
-// Device type
+// Device type.
 type Device struct {
 	context *C.mal_context
 	device  *C.mal_device
 }
 
-// NewDevice returns new Device
+// NewDevice returns new Device.
 func NewDevice() *Device {
 	d := &Device{}
 	d.context = C.goGetContext()
@@ -273,96 +284,128 @@ func NewDevice() *Device {
 	return d
 }
 
-// DeviceID type
+// DeviceID type.
 type DeviceID [unsafe.Sizeof(C.mal_device_id{})]byte
 
-// cptr return C pointer
+// cptr return C pointer.
 func (d *DeviceID) cptr() *C.mal_device_id {
 	return (*C.mal_device_id)(unsafe.Pointer(d))
 }
 
-// DeviceInfo type
+// DeviceInfo type.
 type DeviceInfo struct {
-	ID   DeviceID
-	Name [256]byte
+	ID            DeviceID
+	Name          [256]byte
+	FormatCount   uint32
+	Formats       [6]uint32
+	MinChannels   uint32
+	MaxChannels   uint32
+	MinSampleRate uint32
+	MaxSampleRate uint32
 }
 
-// String returns string
+// String returns string.
 func (d *DeviceInfo) String() string {
 	return fmt.Sprintf("{ID: %s, Name: %s}", string(d.ID[:]), string(d.Name[:]))
 }
 
-// NewDeviceInfoFromPointer returns new DeviceInfo from pointer
+// NewDeviceInfoFromPointer returns new DeviceInfo from pointer.
 func NewDeviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 	return *(*DeviceInfo)(ptr)
 }
 
-// AlsaDeviceConfig type
+// AlsaDeviceConfig type.
 type AlsaDeviceConfig struct {
 	NoMMap uint32
 }
 
-// DeviceConfig type
+// PulseDeviceConfig type.
+type PulseDeviceConfig struct {
+	StreamName *byte
+}
+
+// DeviceConfig type.
 type DeviceConfig struct {
 	Format             FormatType
 	Channels           uint32
 	SampleRate         uint32
-	ChannelMap         [18]byte
-	_                  [2]byte
+	ChannelMap         [32]byte
 	BufferSizeInFrames uint32
 	Periods            uint32
+	ShareMode          ShareMode
+	PerformanceProfile PerformanceProfile
+	_                  [4]byte
 	OnRecvCallback     *[0]byte
 	OnSendCallback     *[0]byte
 	OnStopCallback     *[0]byte
-	OnLogCallback      *[0]byte
 	Alsa               AlsaDeviceConfig
+	_                  [4]byte
+	Pulse              PulseDeviceConfig
 }
 
-// cptr return C pointer
+// cptr return C pointer.
 func (d *DeviceConfig) cptr() *C.mal_device_config {
 	return (*C.mal_device_config)(unsafe.Pointer(d))
 }
 
-// NewDeviceConfigFromPointer returns new DeviceConfig from pointer
+// NewDeviceConfigFromPointer returns new DeviceConfig from pointer.
 func NewDeviceConfigFromPointer(ptr unsafe.Pointer) DeviceConfig {
 	return *(*DeviceConfig)(ptr)
 }
 
-// AlsaContextConfig type
+// AlsaContextConfig type.
 type AlsaContextConfig struct {
 	UseVerboseDeviceEnumeration uint32
-	ExcludeNullDevice           uint32
 }
 
-// ContextConfig type
+// PulseContextConfig type.
+type PulseContextConfig struct {
+	PApplicationName *byte
+	PServerName      *byte
+	// Enables autospawning of the PulseAudio daemon if necessary.
+	TryAutoSpawn uint32
+	Pad_cgo_0    [4]byte
+}
+
+// JackContextConfig type.
+type JackContextConfig struct {
+	PClientName    *byte
+	TryStartServer uint32
+	Pad_cgo_0      [4]byte
+}
+
+// ContextConfig type.
 type ContextConfig struct {
-	OnLogCallback *[0]byte
-	Alsa          AlsaContextConfig
+	OnLog          *[0]byte
+	ThreadPriority ThreadPriority
+	Alsa           AlsaContextConfig
+	Pulse          PulseContextConfig
+	Jack           JackContextConfig
 }
 
-// cptr return C pointer
+// cptr return C pointer.
 func (d *ContextConfig) cptr() *C.mal_context_config {
 	return (*C.mal_context_config)(unsafe.Pointer(d))
 }
 
-// NewContextConfigFromPointer returns new ContextConfig from pointer
+// NewContextConfigFromPointer returns new ContextConfig from pointer.
 func NewContextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
 	return *(*ContextConfig)(ptr)
 }
 
-// RecvProc type
+// RecvProc type.
 type RecvProc func(framecount uint32, psamples []byte)
 
-// SendProc type
+// SendProc type.
 type SendProc func(framecount uint32, psamples []byte) uint32
 
-// StopProc type
+// StopProc type.
 type StopProc func()
 
-// LogProc type
+// LogProc type.
 type LogProc func(message string)
 
-// Handlers
+// Handlers.
 var (
 	recvHandler RecvProc
 	sendHandler SendProc
@@ -374,7 +417,7 @@ var (
 func goRecvCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples unsafe.Pointer) {
 	if recvHandler != nil {
 		sampleCount := uint32(frameCount) * uint32(pDevice.channels)
-		sizeInBytes := uint32(C.mal_get_sample_size_in_bytes(pDevice.format))
+		sizeInBytes := uint32(C.mal_get_bytes_per_sample(pDevice.format))
 		psamples := (*[1 << 20]byte)(pSamples)[0 : sampleCount*sizeInBytes]
 		recvHandler(uint32(frameCount), psamples)
 	}
@@ -384,7 +427,7 @@ func goRecvCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples uns
 func goSendCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples unsafe.Pointer) (r C.mal_uint32) {
 	if sendHandler != nil {
 		sampleCount := uint32(frameCount) * uint32(pDevice.channels)
-		sizeInBytes := uint32(C.mal_get_sample_size_in_bytes(pDevice.format))
+		sizeInBytes := uint32(C.mal_get_bytes_per_sample(pDevice.format))
 		psamples := (*[1 << 20]byte)(pSamples)[0 : sampleCount*sizeInBytes]
 		r = C.mal_uint32(sendHandler(uint32(frameCount), psamples))
 	}
@@ -440,27 +483,40 @@ func (d *Device) ContextUninit() error {
 	return errorFromResult(v)
 }
 
-// EnumerateDevices enumerates over each device of the given type (Playback or Capture).
-//
-// It is _not_ safe to assume the first enumerated device is the default device.
-//
-// This API dynamically links to backend DLLs/SOs (such as dsound.dll).
-func (d *Device) EnumerateDevices(kind DeviceType) ([]DeviceInfo, error) {
-	var pcount uint32 = 32
-	pinfo := make([]C.mal_device_info, pcount)
+// Devices retrieves basic information about every active playback or capture device.
+func (d *Device) Devices(kind DeviceType) ([]DeviceInfo, error) {
+	var pcount uint32
+	var ccount uint32
 
-	ckind := (C.mal_device_type)(kind)
+	pinfo := make([]*C.mal_device_info, 32)
+	cinfo := make([]*C.mal_device_info, 32)
+
 	cpcount := (*C.mal_uint32)(unsafe.Pointer(&pcount))
-	cpinfo := (*C.mal_device_info)(unsafe.Pointer(&pinfo[0]))
+	cccount := (*C.mal_uint32)(unsafe.Pointer(&ccount))
 
-	ret := C.mal_enumerate_devices(d.context, ckind, cpcount, cpinfo)
+	cpinfo := (**C.mal_device_info)(unsafe.Pointer(&pinfo[0]))
+	ccinfo := (**C.mal_device_info)(unsafe.Pointer(&cinfo[0]))
+
+	ret := C.mal_context_get_devices(d.context, cpinfo, cpcount, ccinfo, cccount)
 	v := (Result)(ret)
 
 	if v == Success {
-		tmp := (*[1 << 20]C.mal_device_info)(unsafe.Pointer(cpinfo))[:pcount]
-		res := make([]DeviceInfo, pcount)
-		for i, d := range tmp {
-			res[i] = NewDeviceInfoFromPointer(unsafe.Pointer(&d))
+		res := make([]DeviceInfo, 0)
+
+		if kind == Playback {
+			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(cpinfo))[:pcount]
+			for _, d := range tmp {
+				if d != nil {
+					res = append(res, NewDeviceInfoFromPointer(unsafe.Pointer(d)))
+				}
+			}
+		} else if kind == Capture {
+			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(ccinfo))[:ccount]
+			for _, d := range tmp {
+				if d != nil {
+					res = append(res, NewDeviceInfoFromPointer(unsafe.Pointer(d)))
+				}
+			}
 		}
 
 		return res, nil
@@ -514,6 +570,11 @@ func (d *Device) SetStopCallback(proc StopProc) {
 	C.goSetStopCallback(d.device)
 }
 
+// SetLogCallback sets the log callback.
+func (d *Device) SetLogCallback(proc LogProc) {
+	logHandler = proc
+}
+
 // Start activates the device. For playback devices this begins playback. For capture devices it begins recording.
 //
 // For a playback device, this will retrieve an initial chunk of audio data from the client before
@@ -540,21 +601,6 @@ func (d *Device) IsStarted() (r bool) {
 		r = true
 	}
 	return r
-}
-
-// BufferSizeInBytes retrieves the size of the buffer in bytes.
-func (d *Device) BufferSizeInBytes() uint32 {
-	ret := C.mal_device_get_buffer_size_in_bytes(d.device)
-	v := (uint32)(ret)
-	return v
-}
-
-// SampleSizeInBytes retrieves the size of a sample in bytes for the given format.
-func (d *Device) SampleSizeInBytes(format FormatType) uint32 {
-	cformat := (C.mal_format)(format)
-	ret := C.mal_get_sample_size_in_bytes(cformat)
-	v := (uint32)(ret)
-	return v
 }
 
 // ConfigInit is a helper function for initializing a DeviceConfig object.
@@ -597,6 +643,24 @@ func (d *Device) ConfigInitPlayback(format FormatType, channels uint32, samplera
 	return v
 }
 
+// ConfigInitDefaultCapture initializes a default capture device config.
+func (d *Device) ConfigInitDefaultCapture(onrecvcallback RecvProc) DeviceConfig {
+	recvHandler = onrecvcallback
+
+	ret := C.goConfigInitDefaultCapture()
+	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	return v
+}
+
+// ConfigInitDefaultPlayback initializes a default playback device config.
+func (d *Device) ConfigInitDefaultPlayback(onsendcallback SendProc) DeviceConfig {
+	sendHandler = onsendcallback
+
+	ret := C.goConfigInitDefaultPlayback()
+	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	return v
+}
+
 // ContextConfigInit is a helper function for initializing a ContextConfig object.
 func (d *Device) ContextConfigInit(onlogcallback LogProc) ContextConfig {
 	logHandler = onlogcallback
@@ -606,9 +670,19 @@ func (d *Device) ContextConfigInit(onlogcallback LogProc) ContextConfig {
 	return v
 }
 
-// BufferSizeInFrames retrieves the size of the buffer in frames.
-func (d *Device) BufferSizeInFrames() uint32 {
-	return uint32(d.device.bufferSizeInFrames)
+// BufferSizeInBytes retrieves the size of the buffer in bytes.
+func (d *Device) BufferSizeInBytes() uint32 {
+	ret := C.mal_device_get_buffer_size_in_bytes(d.device)
+	v := (uint32)(ret)
+	return v
+}
+
+// SampleSizeInBytes retrieves the size of a sample in bytes for the given format.
+func (d *Device) SampleSizeInBytes(format FormatType) uint32 {
+	cformat := (C.mal_format)(format)
+	ret := C.mal_get_bytes_per_sample(cformat)
+	v := (uint32)(ret)
+	return v
 }
 
 // Type returns device type.

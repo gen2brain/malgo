@@ -75,10 +75,6 @@ func TestCapturePlayback(t *testing.T) {
 		t.Errorf("wrong samplerate")
 	}
 
-	if device.BufferSizeInBytes() != device.BufferSizeInFrames()*device.Channels()*device.SampleSizeInBytes(device.Format()) {
-		t.Fatalf("wrong buffer size")
-	}
-
 	err = device.Start()
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +109,7 @@ func TestCapturePlayback(t *testing.T) {
 	device.Uninit()
 }
 
-func TestEnumerate(t *testing.T) {
+func TestDevices(t *testing.T) {
 	device := NewDevice()
 
 	config := device.ContextConfigInit(nil)
@@ -126,7 +122,7 @@ func TestEnumerate(t *testing.T) {
 
 	defer device.ContextUninit()
 
-	infosPlayback, err := device.EnumerateDevices(Playback)
+	infosPlayback, err := device.Devices(Playback)
 	if err != nil {
 		t.Error(err)
 	}
@@ -139,7 +135,7 @@ func TestEnumerate(t *testing.T) {
 		fmt.Fprintf(ioutil.Discard, i.String())
 	}
 
-	infosCapture, err := device.EnumerateDevices(Capture)
+	infosCapture, err := device.Devices(Capture)
 	if err != nil {
 		t.Error(err)
 	}

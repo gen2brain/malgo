@@ -19,7 +19,7 @@ func main() {
 	defer device.ContextUninit()
 
 	// Playback devices.
-	infos, err := device.EnumerateDevices(mal.Playback)
+	infos, err := device.Devices(mal.Playback)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -27,13 +27,13 @@ func main() {
 
 	fmt.Println("Playback Devices")
 	for i, info := range infos {
-		fmt.Printf("    %d: %s\n", i, info)
+		fmt.Printf("    %d: %s, %s\n", i, info.ID, info.Name)
 	}
 
 	fmt.Println()
 
 	// Capture devices.
-	infos, err = device.EnumerateDevices(mal.Capture)
+	infos, err = device.Devices(mal.Capture)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -41,6 +41,6 @@ func main() {
 
 	fmt.Println("Capture Devices")
 	for i, info := range infos {
-		fmt.Printf("    %d: %s\n", i, info)
+		fmt.Printf("    %d: %s, %s\n", i, info.ID, info.Name)
 	}
 }

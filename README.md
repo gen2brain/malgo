@@ -20,7 +20,7 @@ Documentation on [GoDoc](https://godoc.org/github.com/gen2brain/malgo). Also che
 ### Platforms
 
 * Windows (WASAPI, DirectSound, WinMM)
-* Linux (ALSA)
-* FreeBSD (OSS)
-* macOS (OpenAL)
+* Linux (PulseAudio, ALSA, JACK)
+* FreeBSD/NetBSD/OpenBSD (OSS)
+* macOS (CoreAudio)
 * Android (OpenSL|ES)
