@@ -4,13 +4,13 @@ go:
   - 1.10.x
 
 before_install:
-  - sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-  - sudo apt-get update
-  - sudo apt-get install gcc-5
+  - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+  - sudo apt-get update -y
+  - sudo apt-get install gcc-5 -y
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-5 1
 
 install:
   - go get -t ./...
 
 script:
- - go test -v ./
+  - go test -v ./
