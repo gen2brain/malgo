@@ -3,11 +3,16 @@ package mal
 
 /*
 #cgo CFLAGS: -std=gnu99
+
 #cgo linux LDFLAGS: -ldl -lpthread -lm
 #cgo openbsd LDFLAGS: -lpthread -lm -lossaudio
 #cgo netbsd LDFLAGS: -lpthread -lm -lossaudio
 #cgo freebsd LDFLAGS: -lpthread -lm
 #cgo android LDFLAGS: -lOpenSLES
+
+#cgo !noasm,!arm,!arm64 CFLAGS: -msse2
+#cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
+#cgo noasm CFLAGS: -DMAL_NO_SSE2 -DMAL_NO_AVX -DMAL_NO_AVX512 -DMAL_NO_NEON
 
 #include "mini_al.h"
 
