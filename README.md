@@ -7,7 +7,7 @@
 
 Go bindings for [mini_al](https://github.com/dr-soft/mini_al), mini audio library.
 
-Requires `cgo` but does not require linking to anything on the Windows and it links only `-ldl` on Linux.
+Requires `cgo` but does not require linking to anything on the Windows/macOS and it links only `-ldl` on Linux.
 
 ### Installation
 
