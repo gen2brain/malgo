@@ -1,14 +1,16 @@
-package mini_al
+package mini_al_test
 
 import (
 	"fmt"
 	"io/ioutil"
 	"testing"
 	"time"
+
+	"github.com/gen2brain/malgo/mini_al"
 )
 
 func TestCapturePlayback(t *testing.T) {
-	device := NewDevice()
+	device := mini_al.NewDevice()
 
 	var playbackSampleCount uint32
 	var capturedSampleCount uint32
@@ -45,25 +47,25 @@ func TestCapturePlayback(t *testing.T) {
 
 	contextConfig := device.ContextConfigInit(onLog)
 
-	err := device.ContextInit([]Backend{BackendNull}, contextConfig)
+	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, contextConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInitCapture(FormatS16, 2, 48000, onRecvFrames)
+	config := device.ConfigInitCapture(mini_al.FormatS16, 2, 48000, onRecvFrames)
 
-	err = device.Init(Capture, nil, &config)
+	err = device.Init(mini_al.Capture, nil, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if device.Type() != Capture {
+	if device.Type() != mini_al.Capture {
 		t.Errorf("wrong device type")
 	}
 
-	if device.Format() != FormatS16 {
+	if device.Format() != mini_al.FormatS16 {
 		t.Errorf("wrong format")
 	}
 
@@ -88,14 +90,14 @@ func TestCapturePlayback(t *testing.T) {
 
 	device.Uninit()
 
-	config = device.ConfigInitPlayback(FormatS16, 2, 48000, onSendFrames)
+	config = device.ConfigInitPlayback(mini_al.FormatS16, 2, 48000, onSendFrames)
 
-	err = device.Init(Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if device.Type() != Playback {
+	if device.Type() != mini_al.Playback {
 		t.Errorf("wrong device type")
 	}
 
@@ -110,19 +112,19 @@ func TestCapturePlayback(t *testing.T) {
 }
 
 func TestDevices(t *testing.T) {
-	device := NewDevice()
+	device := mini_al.NewDevice()
 
 	config := device.ContextConfigInit(nil)
 	config.Alsa.UseVerboseDeviceEnumeration = 1
 
-	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
+	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer device.ContextUninit()
 
-	infosPlayback, err := device.Devices(Playback)
+	infosPlayback, err := device.Devices(mini_al.Playback)
 	if err != nil {
 		t.Error(err)
 	}
@@ -135,7 +137,7 @@ func TestDevices(t *testing.T) {
 		fmt.Fprintf(ioutil.Discard, i.String())
 	}
 
-	infosCapture, err := device.Devices(Capture)
+	infosCapture, err := device.Devices(mini_al.Capture)
 	if err != nil {
 		t.Error(err)
 	}
@@ -146,7 +148,7 @@ func TestDevices(t *testing.T) {
 }
 
 func TestConfigInit(t *testing.T) {
-	device := NewDevice()
+	device := mini_al.NewDevice()
 
 	onRecvFrames := func(framecount uint32, pSamples []byte) {
 	}
@@ -158,16 +160,16 @@ func TestConfigInit(t *testing.T) {
 	onStop := func() {
 	}
 
-	err := device.ContextInit([]Backend{BackendNull}, ContextConfig{})
+	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInit(FormatS16, 2, 48000, onRecvFrames, onSendFrames)
+	config := device.ConfigInit(mini_al.FormatS16, 2, 48000, onRecvFrames, onSendFrames)
 
-	err = device.Init(Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,14 +194,14 @@ func TestConfigInit(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	device := NewDevice()
+	device := mini_al.NewDevice()
 
-	err := device.ContextInit([]Backend{Backend(99)}, ContextConfig{})
+	err := device.ContextInit([]mini_al.Backend{mini_al.Backend(99)}, mini_al.ContextConfig{})
 	if err == nil {
 		t.Fatalf("context init with invalid backend")
 	}
 
-	err = device.ContextInit([]Backend{BackendNull}, ContextConfig{})
+	err = device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,16 +210,16 @@ func TestErrors(t *testing.T) {
 		return 0
 	}
 
-	config := device.ConfigInitPlayback(FormatType(99), 99, 48000, nil)
+	config := device.ConfigInitPlayback(mini_al.FormatType(99), 99, 48000, nil)
 
-	err = device.Init(Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err == nil {
 		t.Fatalf("device init with invalid config")
 	}
 
-	config = device.ConfigInitPlayback(FormatS16, 2, 48000, onSendFrames)
+	config = device.ConfigInitPlayback(mini_al.FormatS16, 2, 48000, onSendFrames)
 
-	err = device.Init(Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err != nil {
 		t.Fatal(err)
 	}
