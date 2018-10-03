@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gen2brain/malgo"
+	"github.com/gen2brain/malgo/mini_al"
 )
 
 func main() {
-	device := mal.NewDevice()
+	device := mini_al.NewDevice()
 
 	var playbackSampleCount uint32
 	var capturedSampleCount uint32
@@ -40,7 +40,7 @@ func main() {
 		return samplesToRead / device.Channels() / sizeInBytes
 	}
 
-	err := device.ContextInit(nil, mal.ContextConfig{})
+	err := device.ContextInit(nil, mini_al.ContextConfig{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -48,11 +48,11 @@ func main() {
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInit(mal.FormatS16, 2, 48000, onRecvFrames, onSendFrames)
+	config := device.ConfigInit(mini_al.FormatS16, 2, 48000, onRecvFrames, onSendFrames)
 	config.Alsa.NoMMap = 1
 
 	fmt.Println("Recording...")
-	err = device.Init(mal.Capture, nil, &config)
+	err = device.Init(mini_al.Capture, nil, &config)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -70,7 +70,7 @@ func main() {
 	device.Uninit()
 
 	fmt.Println("Playing...")
-	err = device.Init(mal.Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -1,4 +1,4 @@
-package mal
+package mini_al
 
 import (
 	"fmt"

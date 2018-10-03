@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gen2brain/malgo"
+	"github.com/gen2brain/malgo/mini_al"
 )
 
 func main() {
-	device := mal.NewDevice()
+	device := mini_al.NewDevice()
 
-	err := device.ContextInit(nil, mal.ContextConfig{})
+	err := device.ContextInit(nil, mini_al.ContextConfig{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -19,7 +19,7 @@ func main() {
 	defer device.ContextUninit()
 
 	// Playback devices.
-	infos, err := device.Devices(mal.Playback)
+	infos, err := device.Devices(mini_al.Playback)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -33,7 +33,7 @@ func main() {
 	fmt.Println()
 
 	// Capture devices.
-	infos, err = device.Devices(mal.Capture)
+	infos, err = device.Devices(mini_al.Capture)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

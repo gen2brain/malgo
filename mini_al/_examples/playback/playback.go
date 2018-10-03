@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/go-mp3"
 	"github.com/youpy/go-wav"
 
-	"github.com/gen2brain/malgo"
+	"github.com/gen2brain/malgo/mini_al"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	device := mal.NewDevice()
+	device := mini_al.NewDevice()
 
 	// This is the function that's used for sending more data to the device for playback.
 	onSendSamples := func(framecount uint32, psamples []byte) uint32 {
@@ -70,7 +70,7 @@ func main() {
 		return uint32(n) / device.Channels() / device.SampleSizeInBytes(device.Format())
 	}
 
-	err = device.ContextInit(nil, mal.ContextConfig{})
+	err = device.ContextInit(nil, mini_al.ContextConfig{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -78,10 +78,10 @@ func main() {
 
 	defer device.ContextUninit()
 
-	config := device.ConfigInitPlayback(mal.FormatS16, channels, sampleRate, onSendSamples)
+	config := device.ConfigInitPlayback(mini_al.FormatS16, channels, sampleRate, onSendSamples)
 	config.Alsa.NoMMap = 1
 
-	err = device.Init(mal.Playback, nil, &config)
+	err = device.Init(mini_al.Playback, nil, &config)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
