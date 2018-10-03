@@ -84,8 +84,7 @@ func (d *DeviceInfo) String() string {
 	return fmt.Sprintf("{ID: %s, Name: %s}", string(d.ID[:]), string(d.Name[:]))
 }
 
-// NewDeviceInfoFromPointer returns new DeviceInfo from pointer.
-func NewDeviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
+func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 	return *(*DeviceInfo)(ptr)
 }
 
@@ -123,8 +122,7 @@ func (d *DeviceConfig) cptr() *C.mal_device_config {
 	return (*C.mal_device_config)(unsafe.Pointer(d))
 }
 
-// NewDeviceConfigFromPointer returns new DeviceConfig from pointer.
-func NewDeviceConfigFromPointer(ptr unsafe.Pointer) DeviceConfig {
+func deviceConfigFromPointer(ptr unsafe.Pointer) DeviceConfig {
 	return *(*DeviceConfig)(ptr)
 }
 
@@ -139,14 +137,16 @@ type PulseContextConfig struct {
 	PServerName      *byte
 	// Enables autospawning of the PulseAudio daemon if necessary.
 	TryAutoSpawn uint32
-	Pad_cgo_0    [4]byte
+	// Padding
+	_ [4]byte
 }
 
 // JackContextConfig type.
 type JackContextConfig struct {
 	PClientName    *byte
 	TryStartServer uint32
-	Pad_cgo_0      [4]byte
+	// Padding
+	_ [4]byte
 }
 
 // ContextConfig type.
@@ -163,8 +163,7 @@ func (d *ContextConfig) cptr() *C.mal_context_config {
 	return (*C.mal_context_config)(unsafe.Pointer(d))
 }
 
-// NewContextConfigFromPointer returns new ContextConfig from pointer.
-func NewContextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
+func contextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
 	return *(*ContextConfig)(ptr)
 }
 
@@ -282,14 +281,14 @@ func (d *Device) Devices(kind DeviceType) ([]DeviceInfo, error) {
 			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(cpinfo))[:pcount]
 			for _, d := range tmp {
 				if d != nil {
-					res = append(res, NewDeviceInfoFromPointer(unsafe.Pointer(d)))
+					res = append(res, deviceInfoFromPointer(unsafe.Pointer(d)))
 				}
 			}
 		} else if kind == Capture {
 			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(ccinfo))[:ccount]
 			for _, d := range tmp {
 				if d != nil {
-					res = append(res, NewDeviceInfoFromPointer(unsafe.Pointer(d)))
+					res = append(res, deviceInfoFromPointer(unsafe.Pointer(d)))
 				}
 			}
 		}
@@ -388,7 +387,7 @@ func (d *Device) ConfigInit(format FormatType, channels uint32, samplerate uint3
 	sendHandler = onsendcallback
 
 	ret := C.goConfigInit(cformat, cchannels, csamplerate)
-	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	v := deviceConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
@@ -401,7 +400,7 @@ func (d *Device) ConfigInitCapture(format FormatType, channels uint32, samplerat
 	recvHandler = onrecvcallback
 
 	ret := C.goConfigInitCapture(cformat, cchannels, csamplerate)
-	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	v := deviceConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
@@ -414,7 +413,7 @@ func (d *Device) ConfigInitPlayback(format FormatType, channels uint32, samplera
 	sendHandler = onsendcallback
 
 	ret := C.goConfigInitPlayback(cformat, cchannels, csamplerate)
-	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	v := deviceConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
@@ -423,7 +422,7 @@ func (d *Device) ConfigInitDefaultCapture(onrecvcallback RecvProc) DeviceConfig 
 	recvHandler = onrecvcallback
 
 	ret := C.goConfigInitDefaultCapture()
-	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	v := deviceConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
@@ -432,7 +431,7 @@ func (d *Device) ConfigInitDefaultPlayback(onsendcallback SendProc) DeviceConfig
 	sendHandler = onsendcallback
 
 	ret := C.goConfigInitDefaultPlayback()
-	v := NewDeviceConfigFromPointer(unsafe.Pointer(&ret))
+	v := deviceConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
@@ -441,7 +440,7 @@ func (d *Device) ContextConfigInit(onlogcallback LogProc) ContextConfig {
 	logHandler = onlogcallback
 
 	ret := C.goContextConfigInit()
-	v := NewContextConfigFromPointer(unsafe.Pointer(&ret))
+	v := contextConfigFromPointer(unsafe.Pointer(&ret))
 	return v
 }
 
