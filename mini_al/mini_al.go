@@ -14,28 +14,7 @@ package mini_al
 #cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
 #cgo noasm CFLAGS: -DMAL_NO_SSE2 -DMAL_NO_AVX -DMAL_NO_AVX512 -DMAL_NO_NEON
 
-#include "mini_al.h"
-
-extern void goRecvCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
-extern mal_uint32 goSendCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
-extern void goStopCallback(mal_device* pDevice);
-
-extern void goLogCallback(mal_context* pContext, mal_device* pDevice, char* message);
-
-void goSetRecvCallback(mal_device* pDevice);
-void goSetSendCallback(mal_device* pDevice);
-void goSetStopCallback(mal_device* pDevice);
-
-mal_device* goGetDevice();
-mal_context* goGetContext();
-
-mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitDefaultCapture();
-mal_device_config goConfigInitDefaultPlayback();
-
-mal_context_config goContextConfigInit();
+#include "malgo.h"
 */
 import "C"
 
@@ -126,47 +105,6 @@ func deviceConfigFromPointer(ptr unsafe.Pointer) DeviceConfig {
 	return *(*DeviceConfig)(ptr)
 }
 
-// AlsaContextConfig type.
-type AlsaContextConfig struct {
-	UseVerboseDeviceEnumeration uint32
-}
-
-// PulseContextConfig type.
-type PulseContextConfig struct {
-	PApplicationName *byte
-	PServerName      *byte
-	// Enables autospawning of the PulseAudio daemon if necessary.
-	TryAutoSpawn uint32
-	// Padding
-	_ [4]byte
-}
-
-// JackContextConfig type.
-type JackContextConfig struct {
-	PClientName    *byte
-	TryStartServer uint32
-	// Padding
-	_ [4]byte
-}
-
-// ContextConfig type.
-type ContextConfig struct {
-	OnLog          *[0]byte
-	ThreadPriority ThreadPriority
-	Alsa           AlsaContextConfig
-	Pulse          PulseContextConfig
-	Jack           JackContextConfig
-}
-
-// cptr return C pointer.
-func (d *ContextConfig) cptr() *C.mal_context_config {
-	return (*C.mal_context_config)(unsafe.Pointer(d))
-}
-
-func contextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
-	return *(*ContextConfig)(ptr)
-}
-
 // RecvProc type.
 type RecvProc func(framecount uint32, psamples []byte)
 
@@ -175,9 +113,6 @@ type SendProc func(framecount uint32, psamples []byte) uint32
 
 // StopProc type.
 type StopProc func()
-
-// LogProc type.
-type LogProc func(message string)
 
 // Handlers.
 var (
@@ -212,13 +147,6 @@ func goSendCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples uns
 func goStopCallback(pDevice *C.mal_device) {
 	if stopHandler != nil {
 		stopHandler()
-	}
-}
-
-//export goLogCallback
-func goLogCallback(pContext *C.mal_context, pDevice *C.mal_device, message *C.char) {
-	if logHandler != nil {
-		logHandler(C.GoString(message))
 	}
 }
 

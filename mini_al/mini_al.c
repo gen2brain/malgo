@@ -6,6 +6,14 @@
 mal_context context;
 mal_device device;
 
+size_t goContextSize(void) {
+    return sizeof(mal_context);
+}
+
+void *goLogCallbackPointer(void) {
+    return goLogCallback;
+}
+
 void goSetRecvCallback(mal_device* pDevice) {
     mal_device_set_recv_callback(pDevice, goRecvCallback);
 }

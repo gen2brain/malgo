@@ -64,15 +64,15 @@ type ThreadPriority int32
 
 // ThreadPriority enumeration.
 const (
-	Idle     ThreadPriority = -5
-	Lowest   ThreadPriority = -4
-	Low      ThreadPriority = -3
-	Normal   ThreadPriority = -2
-	High     ThreadPriority = -1
-	Highest  ThreadPriority = 0
-	Realtime ThreadPriority = 1
+	ThreadPriorityIdle     ThreadPriority = -5
+	ThreadPriorityLowest   ThreadPriority = -4
+	ThreadPriorityLow      ThreadPriority = -3
+	ThreadPriorityNormal   ThreadPriority = -2
+	ThreadPriorityHigh     ThreadPriority = -1
+	ThreadPriorityHighest  ThreadPriority = 0
+	ThreadPriorityRealtime ThreadPriority = 1
 
-	Default ThreadPriority = 0
+	ThreadPriorityDefault ThreadPriority = 0
 )
 
 // Result type.
