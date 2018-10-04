@@ -1,6 +1,7 @@
 package mini_al_test
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"testing"
@@ -8,6 +9,13 @@ import (
 
 	"github.com/gen2brain/malgo/mini_al"
 )
+
+var testenvWithHardware bool
+
+func init() {
+	flag.BoolVar(&testenvWithHardware, "malgo.hw", false, "Add flag to run tests expecting hardware")
+	flag.Parse()
+}
 
 func TestCapturePlayback(t *testing.T) {
 	device := mini_al.NewDevice()
@@ -109,42 +117,6 @@ func TestCapturePlayback(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	device.Uninit()
-}
-
-func TestDevices(t *testing.T) {
-	device := mini_al.NewDevice()
-
-	config := device.ContextConfigInit(nil)
-	config.Alsa.UseVerboseDeviceEnumeration = 1
-
-	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer device.ContextUninit()
-
-	infosPlayback, err := device.Devices(mini_al.Playback)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(infosPlayback) == 0 {
-		t.Errorf("empty playback device info")
-	}
-
-	for _, i := range infosPlayback {
-		fmt.Fprintf(ioutil.Discard, i.String())
-	}
-
-	infosCapture, err := device.Devices(mini_al.Capture)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if len(infosCapture) == 0 {
-		t.Errorf("empty capture device info")
-	}
 }
 
 func TestConfigInit(t *testing.T) {

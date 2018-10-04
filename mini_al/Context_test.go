@@ -24,3 +24,29 @@ func TestContextLifecycle(t *testing.T) {
 	ctx.Free()
 	assert.Equal(t, mini_al.Context(0), ctx.Context, "Expected context value to be reset")
 }
+
+func TestContextDeviceEnumeration(t *testing.T) {
+	if testenvWithHardware {
+		t.Log("Running test expecting devices\n")
+	}
+
+	ctx, err := mini_al.InitContext(nil, mini_al.ContextConfig{}, nil)
+	require.Nil(t, err, "No error expected initializing context")
+	defer func() {
+		err := ctx.Uninit()
+		assert.Nil(t, err, "No error expected uninitializing")
+		ctx.Free()
+	}()
+
+	playbackDevices, err := ctx.Devices(mini_al.Playback)
+	assert.Nil(t, err, "No error expected querying playback devices")
+	if testenvWithHardware {
+		assert.True(t, len(playbackDevices) > 0, "No playback devices found")
+	}
+
+	captureDevices, err := ctx.Devices(mini_al.Capture)
+	assert.Nil(t, err, "No error expected querying capture devices")
+	if testenvWithHardware {
+		assert.True(t, len(captureDevices) > 0, "No capture devices found")
+	}
+}

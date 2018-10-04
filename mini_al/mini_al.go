@@ -155,48 +155,6 @@ func (d *Device) ContextUninit() error {
 	return errorFromResult(v)
 }
 
-// Devices retrieves basic information about every active playback or capture device.
-func (d *Device) Devices(kind DeviceType) ([]DeviceInfo, error) {
-	var pcount uint32
-	var ccount uint32
-
-	pinfo := make([]*C.mal_device_info, 32)
-	cinfo := make([]*C.mal_device_info, 32)
-
-	cpcount := (*C.mal_uint32)(unsafe.Pointer(&pcount))
-	cccount := (*C.mal_uint32)(unsafe.Pointer(&ccount))
-
-	cpinfo := (**C.mal_device_info)(unsafe.Pointer(&pinfo[0]))
-	ccinfo := (**C.mal_device_info)(unsafe.Pointer(&cinfo[0]))
-
-	ret := C.mal_context_get_devices(d.context, cpinfo, cpcount, ccinfo, cccount)
-	v := (Result)(ret)
-
-	if v == Success {
-		res := make([]DeviceInfo, 0)
-
-		if kind == Playback {
-			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(cpinfo))[:pcount]
-			for _, d := range tmp {
-				if d != nil {
-					res = append(res, deviceInfoFromPointer(unsafe.Pointer(d)))
-				}
-			}
-		} else if kind == Capture {
-			tmp := (*[1 << 20]*C.mal_device_info)(unsafe.Pointer(ccinfo))[:ccount]
-			for _, d := range tmp {
-				if d != nil {
-					res = append(res, deviceInfoFromPointer(unsafe.Pointer(d)))
-				}
-			}
-		}
-
-		return res, nil
-	}
-
-	return nil, errorFromResult(v)
-}
-
 // Init initializes a device.
 //
 // The device ID (pdeviceid) can be nil, in which case the default device is used. Otherwise, you
