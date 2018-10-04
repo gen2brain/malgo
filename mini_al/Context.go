@@ -144,7 +144,7 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 	var backendsArg *C.mal_backend
 	backendCountArg := (C.mal_uint32)(len(backends))
 	if backendCountArg > 0 {
-		backendsArg = unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data)
+		backendsArg = (*C.mal_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
 	}
 
 	result := C.mal_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
