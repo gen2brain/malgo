@@ -69,6 +69,39 @@ func (ctx Context) Uninit() error {
 	return errorFromResult(Result(result))
 }
 
+// Devices retrieves basic information about every active playback or capture device.
+func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
+	contextMutex.Lock()
+	defer contextMutex.Unlock()
+
+	var playbackDevices *C.mal_device_info
+	var playbackDeviceCount C.uint
+	var captureDevices *C.mal_device_info
+	var captureDeviceCount C.uint
+
+	result := C.mal_context_get_devices(ctx.cptr(),
+		&playbackDevices, &playbackDeviceCount,
+		&captureDevices, &captureDeviceCount)
+	err := errorFromResult(Result(result))
+	if err != nil {
+		return nil, err
+	}
+	devices := playbackDevices
+	deviceCount := int(playbackDeviceCount)
+	if kind == Capture {
+		devices = captureDevices
+		deviceCount = int(captureDeviceCount)
+	}
+	info := make([]DeviceInfo, deviceCount)
+	deviceInfoAddr := uintptr(unsafe.Pointer(devices))
+	for i := 0; i < deviceCount; i++ {
+		info[i] = deviceInfoFromPointer(unsafe.Pointer(deviceInfoAddr))
+		deviceInfoAddr += unsafe.Sizeof(C.mal_device_info{})
+	}
+
+	return info, nil
+}
+
 var contextMutex sync.Mutex
 var logProcMap map[*C.mal_context]LogProc
 
@@ -102,7 +135,7 @@ type AllocatedContext struct {
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
 	config.onLog = uintptr(C.goLogCallbackPointer())
-	ctx := AllocatedContext{Context: Context(C.mal_malloc(C.goContextSize()))}
+	ctx := AllocatedContext{Context: Context(C.mal_malloc(C.size_t(unsafe.Sizeof(C.mal_context{}))))}
 	if ctx.Context == 0 {
 		return nil, ErrOutOfMemory
 	}

@@ -19,7 +19,6 @@ package mini_al
 import "C"
 
 import (
-	"fmt"
 	"reflect"
 	"unsafe"
 )
@@ -36,35 +35,6 @@ func NewDevice() *Device {
 	d.context = C.goGetContext()
 	d.device = C.goGetDevice()
 	return d
-}
-
-// DeviceID type.
-type DeviceID [unsafe.Sizeof(C.mal_device_id{})]byte
-
-// cptr return C pointer.
-func (d *DeviceID) cptr() *C.mal_device_id {
-	return (*C.mal_device_id)(unsafe.Pointer(d))
-}
-
-// DeviceInfo type.
-type DeviceInfo struct {
-	ID            DeviceID
-	Name          [256]byte
-	FormatCount   uint32
-	Formats       [6]uint32
-	MinChannels   uint32
-	MaxChannels   uint32
-	MinSampleRate uint32
-	MaxSampleRate uint32
-}
-
-// String returns string.
-func (d *DeviceInfo) String() string {
-	return fmt.Sprintf("{ID: %s, Name: %s}", string(d.ID[:]), string(d.Name[:]))
-}
-
-func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
-	return *(*DeviceInfo)(ptr)
 }
 
 // AlsaDeviceConfig type.

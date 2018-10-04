@@ -7,8 +7,6 @@
 extern "C" {
 #endif
 
-size_t goContextSize(void);
-
 extern void goRecvCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern mal_uint32 goSendCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern void goStopCallback(mal_device* pDevice);

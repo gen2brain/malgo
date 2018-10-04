@@ -6,10 +6,6 @@
 mal_context context;
 mal_device device;
 
-size_t goContextSize(void) {
-    return sizeof(mal_context);
-}
-
 void *goLogCallbackPointer(void) {
     return goLogCallback;
 }
