@@ -36,7 +36,7 @@ type JackContextConfig struct {
 
 // ContextConfig type.
 type ContextConfig struct {
-	onLog          uintptr
+	_              uintptr
 	ThreadPriority ThreadPriority
 	Alsa           AlsaContextConfig
 	Pulse          PulseContextConfig
@@ -45,10 +45,6 @@ type ContextConfig struct {
 
 func (d *ContextConfig) cptr() *C.mal_context_config {
 	return (*C.mal_context_config)(unsafe.Pointer(d))
-}
-
-func contextConfigFromPointer(ptr unsafe.Pointer) ContextConfig {
-	return *(*ContextConfig)(ptr)
 }
 
 // Context is used for selecting and initializing the relevant backends.
@@ -96,14 +92,14 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	deviceInfoAddr := uintptr(unsafe.Pointer(devices))
 	for i := 0; i < deviceCount; i++ {
 		info[i] = deviceInfoFromPointer(unsafe.Pointer(deviceInfoAddr))
-		deviceInfoAddr += unsafe.Sizeof(C.mal_device_info{})
+		deviceInfoAddr += rawDeviceInfoSize
 	}
 
 	return info, nil
 }
 
 var contextMutex sync.Mutex
-var logProcMap map[*C.mal_context]LogProc
+var logProcMap = make(map[*C.mal_context]LogProc)
 
 // SetLogProc sets the logging callback for the context.
 func (ctx Context) SetLogProc(proc LogProc) {
@@ -119,9 +115,12 @@ func (ctx Context) SetLogProc(proc LogProc) {
 
 //export goLogCallback
 func goLogCallback(pContext *C.mal_context, pDevice *C.mal_device, message *C.char) {
-	proc := logProcMap[pContext]
-	if proc != nil {
-		proc(C.GoString(message))
+	contextMutex.Lock()
+	callback := logProcMap[pContext]
+	contextMutex.Unlock()
+
+	if callback != nil {
+		callback(C.GoString(message))
 	}
 }
 
@@ -134,7 +133,7 @@ type AllocatedContext struct {
 // InitContext creates and initializes a context.
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
-	config.onLog = uintptr(C.goLogCallbackPointer())
+	C.goSetContextConfigCallbacks(config.cptr())
 	ctx := AllocatedContext{Context: Context(C.mal_malloc(C.size_t(unsafe.Sizeof(C.mal_context{}))))}
 	if ctx.Context == 0 {
 		return nil, ErrOutOfMemory

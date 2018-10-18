@@ -7,27 +7,13 @@
 extern "C" {
 #endif
 
+extern void goLogCallback(mal_context* pContext, mal_device* pDevice, char* message);
+void goSetContextConfigCallbacks(mal_context_config* pConfig);
+
 extern void goRecvCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern mal_uint32 goSendCallback(mal_device* pDevice, mal_uint32 frameCount, void* pSamples);
 extern void goStopCallback(mal_device* pDevice);
-
-extern void goLogCallback(mal_context* pContext, mal_device* pDevice, char* message);
-void *goLogCallbackPointer(void);
-
-void goSetRecvCallback(mal_device* pDevice);
-void goSetSendCallback(mal_device* pDevice);
-void goSetStopCallback(mal_device* pDevice);
-
-mal_device* goGetDevice();
-mal_context* goGetContext();
-
-mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate);
-mal_device_config goConfigInitDefaultCapture();
-mal_device_config goConfigInitDefaultPlayback();
-
-mal_context_config goContextConfigInit();
+void goSetDeviceConfigCallbacks(mal_device_config* pConfig);
 
 #ifdef __cplusplus
 }

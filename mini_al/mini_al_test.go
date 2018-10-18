@@ -2,12 +2,6 @@ package mini_al_test
 
 import (
 	"flag"
-	"fmt"
-	"io/ioutil"
-	"testing"
-	"time"
-
-	"github.com/gen2brain/malgo/mini_al"
 )
 
 var testenvWithHardware bool
@@ -17,6 +11,7 @@ func init() {
 	flag.Parse()
 }
 
+/*
 func TestCapturePlayback(t *testing.T) {
 	device := mini_al.NewDevice()
 
@@ -222,3 +217,4 @@ func TestErrors(t *testing.T) {
 
 	device.Uninit()
 }
+*/
