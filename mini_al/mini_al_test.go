@@ -2,6 +2,12 @@ package mini_al_test
 
 import (
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"testing"
+	"time"
+
+	"github.com/gen2brain/malgo/mini_al"
 )
 
 var testenvWithHardware bool
@@ -11,17 +17,33 @@ func init() {
 	flag.Parse()
 }
 
-/*
 func TestCapturePlayback(t *testing.T) {
-	device := mini_al.NewDevice()
+	onLog := func(message string) {
+		fmt.Fprintf(ioutil.Discard, message)
+	}
+
+	ctx, err := mini_al.InitContext([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{}, onLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = ctx.Uninit()
+		ctx.Free()
+	}()
+
+	deviceConfig := mini_al.DefaultDeviceConfig()
+	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig.Channels = 2
+	deviceConfig.SampleRate = 48000
+	deviceConfig.Alsa.NoMMap = 1
 
 	var playbackSampleCount uint32
 	var capturedSampleCount uint32
 	pCapturedSamples := make([]byte, 0)
 
+	sizeInBytes := uint32(mini_al.SampleSizeInBytes(deviceConfig.Format))
 	onRecvFrames := func(framecount uint32, pSamples []byte) {
-		sizeInBytes := device.SampleSizeInBytes(device.Format())
-		sampleCount := framecount * device.Channels() * sizeInBytes
+		sampleCount := framecount * deviceConfig.Channels * sizeInBytes
 
 		newCapturedSampleCount := capturedSampleCount + sampleCount
 
@@ -30,36 +52,10 @@ func TestCapturePlayback(t *testing.T) {
 		capturedSampleCount = newCapturedSampleCount
 	}
 
-	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
-		sizeInBytes := device.SampleSizeInBytes(device.Format())
-		samplesToRead := framecount * device.Channels() * sizeInBytes
-		if samplesToRead > capturedSampleCount-playbackSampleCount {
-			samplesToRead = capturedSampleCount - playbackSampleCount
-		}
-
-		copy(pSamples, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
-
-		playbackSampleCount += samplesToRead
-
-		return samplesToRead / device.Channels() / sizeInBytes
+	captureCallbacks := mini_al.DeviceCallbacks{
+		Recv: onRecvFrames,
 	}
-
-	onLog := func(message string) {
-		fmt.Fprintf(ioutil.Discard, message)
-	}
-
-	contextConfig := device.ContextConfigInit(onLog)
-
-	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, contextConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer device.ContextUninit()
-
-	config := device.ConfigInitCapture(mini_al.FormatS16, 2, 48000, onRecvFrames)
-
-	err = device.Init(mini_al.Capture, nil, &config)
+	device, err := mini_al.InitDevice(ctx.Context, mini_al.Capture, nil, deviceConfig, captureCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,9 +89,24 @@ func TestCapturePlayback(t *testing.T) {
 
 	device.Uninit()
 
-	config = device.ConfigInitPlayback(mini_al.FormatS16, 2, 48000, onSendFrames)
+	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
+		samplesToRead := framecount * deviceConfig.Channels * sizeInBytes
+		if samplesToRead > capturedSampleCount-playbackSampleCount {
+			samplesToRead = capturedSampleCount - playbackSampleCount
+		}
 
-	err = device.Init(mini_al.Playback, nil, &config)
+		copy(pSamples, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
+
+		playbackSampleCount += samplesToRead
+
+		return samplesToRead / deviceConfig.Channels / sizeInBytes
+	}
+
+	playbackCallbacks := mini_al.DeviceCallbacks{
+		Send: onSendFrames,
+	}
+
+	device, err = mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, playbackCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,107 +125,68 @@ func TestCapturePlayback(t *testing.T) {
 	device.Uninit()
 }
 
-func TestConfigInit(t *testing.T) {
-	device := mini_al.NewDevice()
-
-	onRecvFrames := func(framecount uint32, pSamples []byte) {
-	}
-
-	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
-		return 0
-	}
-
-	onStop := func() {
-	}
-
-	err := device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer device.ContextUninit()
-
-	config := device.ConfigInit(mini_al.FormatS16, 2, 48000, onRecvFrames, onSendFrames)
-
-	err = device.Init(mini_al.Playback, nil, &config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	device.SetStopCallback(onStop)
-
-	err = device.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !device.IsStarted() {
-		t.Fatalf("device not started")
-	}
-
-	err = device.Stop()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	device.Uninit()
-}
-
 func TestErrors(t *testing.T) {
-	device := mini_al.NewDevice()
 
-	err := device.ContextInit([]mini_al.Backend{mini_al.Backend(99)}, mini_al.ContextConfig{})
+	_, err := mini_al.InitContext([]mini_al.Backend{mini_al.Backend(99)}, mini_al.ContextConfig{}, nil)
 	if err == nil {
 		t.Fatalf("context init with invalid backend")
 	}
 
-	err = device.ContextInit([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{})
+	ctx, err := mini_al.InitContext([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		_ = ctx.Uninit()
+		ctx.Free()
+	}()
 
 	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
 		return 0
 	}
 
-	config := device.ConfigInitPlayback(mini_al.FormatType(99), 99, 48000, nil)
+	deviceConfig := mini_al.DefaultDeviceConfig()
+	deviceConfig.Format = mini_al.FormatType(99)
+	deviceConfig.Channels = 99
+	deviceConfig.SampleRate = 48000
 
-	err = device.Init(mini_al.Playback, nil, &config)
+	_, err = mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, mini_al.DeviceCallbacks{})
 	if err == nil {
 		t.Fatalf("device init with invalid config")
 	}
 
-	config = device.ConfigInitPlayback(mini_al.FormatS16, 2, 48000, onSendFrames)
+	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig.Channels = 2
+	deviceConfig.SampleRate = 48000
 
-	err = device.Init(mini_al.Playback, nil, &config)
+	dev, err := mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, mini_al.DeviceCallbacks{
+		Send: onSendFrames,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = device.Start()
+	err = dev.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = device.Start()
+	err = dev.Start()
 	if err == nil {
 		t.Fatalf("device start but already started")
 	}
 
 	time.Sleep(1 * time.Second)
 
-	err = device.Stop()
+	err = dev.Stop()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = device.Stop()
+	err = dev.Stop()
 	if err == nil {
 		t.Fatalf("device stop but already stopped")
 	}
 
-	device.ContextUninit()
-
-	device.Uninit()
+	dev.Uninit()
 }
-*/
