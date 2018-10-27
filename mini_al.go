@@ -82,6 +82,8 @@ const (
 	InvalidDeviceConfig            = -31
 	AccessDenied                   = -32
 	TooLarge                       = -33
+	DeviceUnavailable              = -34
+	Timeout                        = -35
 )
 
 // Errors.
@@ -121,6 +123,8 @@ var (
 	ErrInvalidDeviceConfig            = fmt.Errorf("%s: invalid device config", errTag)
 	ErrAccessDenied                   = fmt.Errorf("%s: access denied", errTag)
 	ErrTooLarge                       = fmt.Errorf("%s: too large", errTag)
+	ErrDeviceUnavailable              = fmt.Errorf("%s: device unavailable", errTag)
+	ErrTimeout                        = fmt.Errorf("%s: timeout", errTag)
 )
 
 // errorFromResult returns error for result code.
@@ -194,6 +198,10 @@ func errorFromResult(r Result) error {
 		return ErrAccessDenied
 	case TooLarge:
 		return ErrTooLarge
+	case DeviceUnavailable:
+		return ErrDeviceUnavailable
+	case Timeout:
+		return ErrTimeout
 	default:
 		return ErrError
 	}
@@ -212,6 +220,8 @@ const (
 	BackendPulseAudio
 	BackendJack
 	BackendCoreAudio
+	BackendSndio
+	BackendAudio4
 	BackendOss
 	BackendOpensl
 	BackendOpenal
@@ -268,9 +278,9 @@ const (
 	Low      ThreadPriority = -3
 	Normal   ThreadPriority = -2
 	High     ThreadPriority = -1
-	Highest  ThreadPriority = -0
-	Realtime ThreadPriority = -1
-	Default  ThreadPriority = -2
+	Highest  ThreadPriority = 0
+	Realtime ThreadPriority = 1
+	Default  ThreadPriority = 2
 )
 
 // Result type.
@@ -332,21 +342,21 @@ type PulseDeviceConfig struct {
 
 // DeviceConfig type.
 type DeviceConfig struct {
-	Format             FormatType
-	Channels           uint32
-	SampleRate         uint32
-	ChannelMap         [32]byte
-	BufferSizeInFrames uint32
-	Periods            uint32
-	ShareMode          ShareMode
-	PerformanceProfile PerformanceProfile
-	_                  [4]byte
-	OnRecvCallback     *[0]byte
-	OnSendCallback     *[0]byte
-	OnStopCallback     *[0]byte
-	Alsa               AlsaDeviceConfig
-	_                  [4]byte
-	Pulse              PulseDeviceConfig
+	Format                   FormatType
+	Channels                 uint32
+	SampleRate               uint32
+	ChannelMap               [32]uint8
+	BufferSizeInFrames       uint32
+	BufferSizeInMilliseconds uint32
+	Periods                  uint32
+	ShareMode                ShareMode
+	PerformanceProfile       PerformanceProfile
+	OnRecvCallback           *[0]byte
+	OnSendCallback           *[0]byte
+	OnStopCallback           *[0]byte
+	Alsa                     AlsaDeviceConfig
+	_                        [4]byte
+	Pulse                    PulseDeviceConfig
 }
 
 // cptr return C pointer.
