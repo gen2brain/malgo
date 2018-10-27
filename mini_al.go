@@ -3,6 +3,7 @@ package mal
 
 /*
 #cgo CFLAGS: -std=gnu99
+#cgo mal_debug CFLAGS: -DMAL_DEBUG_OUTPUT=1
 
 #cgo linux LDFLAGS: -ldl -lpthread -lm
 #cgo openbsd LDFLAGS: -lpthread -lm -lossaudio
