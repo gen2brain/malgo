@@ -6,8 +6,16 @@
 mal_context context;
 mal_device device;
 
+static void goRecvCallbackWrapper(mal_device *pDevice, mal_uint32 frames, const void *pSamples) {
+    goRecvCallback(pDevice, frames, (void *)pSamples);
+}
+
+static void goLogCallbackWrapper(mal_context *pContext, mal_device *pDevice, const char *message) {
+    goLogCallback(pContext, pDevice, (char *)message);
+}
+
 void goSetRecvCallback(mal_device* pDevice) {
-    mal_device_set_recv_callback(pDevice, goRecvCallback);
+    mal_device_set_recv_callback(pDevice, goRecvCallbackWrapper);
 }
 
 void goSetSendCallback(mal_device* pDevice) {
@@ -27,11 +35,11 @@ mal_context* goGetContext() {
 }
 
 mal_device_config goConfigInit(mal_format format, mal_uint32 channels, mal_uint32 sampleRate) {
-    return mal_device_config_init(format, channels, sampleRate, goRecvCallback, goSendCallback);
+    return mal_device_config_init(format, channels, sampleRate, goRecvCallbackWrapper, goSendCallback);
 }
 
 mal_device_config goConfigInitCapture(mal_format format, mal_uint32 channels, mal_uint32 sampleRate) {
-    return mal_device_config_init(format, channels, sampleRate, goRecvCallback, NULL);
+    return mal_device_config_init(format, channels, sampleRate, goRecvCallbackWrapper, NULL);
 }
 
 mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, mal_uint32 sampleRate) {
@@ -39,7 +47,7 @@ mal_device_config goConfigInitPlayback(mal_format format, mal_uint32 channels, m
 }
 
 mal_device_config goConfigInitDefaultCapture() {
-    return mal_device_config_init_default_capture(goRecvCallback);
+    return mal_device_config_init_default_capture(goRecvCallbackWrapper);
 }
 
 mal_device_config goConfigInitDefaultPlayback() {
@@ -47,5 +55,5 @@ mal_device_config goConfigInitDefaultPlayback() {
 }
 
 mal_context_config goContextConfigInit() {
-    return mal_context_config_init(goLogCallback);
+    return mal_context_config_init(goLogCallbackWrapper);
 }
