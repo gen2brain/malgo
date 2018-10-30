@@ -126,7 +126,14 @@ func (dev *Device) Stop() error {
 // This will explicitly stop the device. You do not need to call Stop() beforehand, but it's
 // harmless if you do.
 func (dev *Device) Uninit() {
-	C.mal_device_uninit(dev.cptr())
+	rawDevice := dev.cptr()
+	deviceMutex.Lock()
+	delete(recvCallbacks, rawDevice)
+	delete(sendCallbacks, rawDevice)
+	delete(stopCallbacks, rawDevice)
+	deviceMutex.Unlock()
+
+	C.mal_device_uninit(rawDevice)
 	dev.free()
 }
 
