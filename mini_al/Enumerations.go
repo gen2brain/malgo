@@ -13,6 +13,8 @@ const (
 	BackendPulseAudio
 	BackendJack
 	BackendCoreAudio
+	BackendSndio
+	BackendAudio4
 	BackendOss
 	BackendOpensl
 	BackendOpenal
@@ -114,4 +116,6 @@ const (
 	InvalidDeviceConfig            = -31
 	AccessDenied                   = -32
 	TooLarge                       = -33
+	DeviceUnavailable              = -34
+	Timeout                        = -35
 )

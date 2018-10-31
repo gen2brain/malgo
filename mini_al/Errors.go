@@ -39,6 +39,8 @@ var (
 	ErrInvalidDeviceConfig            = fmt.Errorf("%s: invalid device config", errTag)
 	ErrAccessDenied                   = fmt.Errorf("%s: access denied", errTag)
 	ErrTooLarge                       = fmt.Errorf("%s: too large", errTag)
+	ErrDeviceUnavailable              = fmt.Errorf("%s: device unavailable", errTag)
+	ErrTimeout                        = fmt.Errorf("%s: timeout", errTag)
 )
 
 // errorFromResult returns error for result code.
@@ -112,6 +114,10 @@ func errorFromResult(r Result) error {
 		return ErrAccessDenied
 	case TooLarge:
 		return ErrTooLarge
+	case DeviceUnavailable:
+		return ErrDeviceUnavailable
+	case Timeout:
+		return ErrTimeout
 	default:
 		return ErrError
 	}
