@@ -1,4 +1,4 @@
-package malgo
+package io_api
 
 import "github.com/gen2brain/malgo/mini_al"
 
