@@ -3,12 +3,12 @@ package io_api
 import (
 	"context"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
-func stream(ctx context.Context, abortChan chan error, deviceType mini_al.DeviceType,
-	deviceConfig mini_al.DeviceConfig, deviceCallbacks mini_al.DeviceCallbacks) error {
-	device, err := mini_al.InitDevice(mini_al.DefaultContext, deviceType, nil, deviceConfig, deviceCallbacks)
+func stream(ctx context.Context, abortChan chan error, deviceType malgo.DeviceType,
+	deviceConfig malgo.DeviceConfig, deviceCallbacks malgo.DeviceCallbacks) error {
+	device, err := malgo.InitDevice(malgo.DefaultContext, deviceType, nil, deviceConfig, deviceCallbacks)
 	if err != nil {
 		return err
 	}

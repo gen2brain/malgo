@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
 // Capture records incoming samples into the provided writer.
@@ -18,7 +18,7 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 	defer close(abortChan)
 	aborted := false
 
-	deviceCallbacks := mini_al.DeviceCallbacks{
+	deviceCallbacks := malgo.DeviceCallbacks{
 		Recv: func(frameCount uint32, samples []byte) {
 			if aborted {
 				return
@@ -32,5 +32,5 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 		},
 	}
 
-	return stream(ctx, abortChan, mini_al.Capture, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, malgo.Capture, deviceConfig, deviceCallbacks)
 }

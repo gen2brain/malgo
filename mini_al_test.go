@@ -1,4 +1,4 @@
-package mini_al_test
+package malgo_test
 
 import (
 	"flag"
@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
 var testenvWithHardware bool
@@ -22,7 +22,7 @@ func TestCapturePlayback(t *testing.T) {
 		fmt.Fprintf(ioutil.Discard, message)
 	}
 
-	ctx, err := mini_al.InitContext([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{}, onLog)
+	ctx, err := malgo.InitContext([]malgo.Backend{malgo.BackendNull}, malgo.ContextConfig{}, onLog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,8 @@ func TestCapturePlayback(t *testing.T) {
 		ctx.Free()
 	}()
 
-	deviceConfig := mini_al.DefaultDeviceConfig()
-	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig.Format = malgo.FormatS16
 	deviceConfig.Channels = 2
 	deviceConfig.SampleRate = 48000
 	deviceConfig.Alsa.NoMMap = 1
@@ -41,7 +41,7 @@ func TestCapturePlayback(t *testing.T) {
 	var capturedSampleCount uint32
 	pCapturedSamples := make([]byte, 0)
 
-	sizeInBytes := uint32(mini_al.SampleSizeInBytes(deviceConfig.Format))
+	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	onRecvFrames := func(framecount uint32, pSamples []byte) {
 		sampleCount := framecount * deviceConfig.Channels * sizeInBytes
 
@@ -52,19 +52,19 @@ func TestCapturePlayback(t *testing.T) {
 		capturedSampleCount = newCapturedSampleCount
 	}
 
-	captureCallbacks := mini_al.DeviceCallbacks{
+	captureCallbacks := malgo.DeviceCallbacks{
 		Recv: onRecvFrames,
 	}
-	device, err := mini_al.InitDevice(ctx.Context, mini_al.Capture, nil, deviceConfig, captureCallbacks)
+	device, err := malgo.InitDevice(ctx.Context, malgo.Capture, nil, deviceConfig, captureCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if device.Type() != mini_al.Capture {
+	if device.Type() != malgo.Capture {
 		t.Errorf("wrong device type")
 	}
 
-	if device.Format() != mini_al.FormatS16 {
+	if device.Format() != malgo.FormatS16 {
 		t.Errorf("wrong format")
 	}
 
@@ -102,16 +102,16 @@ func TestCapturePlayback(t *testing.T) {
 		return samplesToRead / deviceConfig.Channels / sizeInBytes
 	}
 
-	playbackCallbacks := mini_al.DeviceCallbacks{
+	playbackCallbacks := malgo.DeviceCallbacks{
 		Send: onSendFrames,
 	}
 
-	device, err = mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, playbackCallbacks)
+	device, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, playbackCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if device.Type() != mini_al.Playback {
+	if device.Type() != malgo.Playback {
 		t.Errorf("wrong device type")
 	}
 
@@ -127,12 +127,12 @@ func TestCapturePlayback(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 
-	_, err := mini_al.InitContext([]mini_al.Backend{mini_al.Backend(99)}, mini_al.ContextConfig{}, nil)
+	_, err := malgo.InitContext([]malgo.Backend{malgo.Backend(99)}, malgo.ContextConfig{}, nil)
 	if err == nil {
 		t.Fatalf("context init with invalid backend")
 	}
 
-	ctx, err := mini_al.InitContext([]mini_al.Backend{mini_al.BackendNull}, mini_al.ContextConfig{}, nil)
+	ctx, err := malgo.InitContext([]malgo.Backend{malgo.BackendNull}, malgo.ContextConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,21 +145,21 @@ func TestErrors(t *testing.T) {
 		return 0
 	}
 
-	deviceConfig := mini_al.DefaultDeviceConfig()
-	deviceConfig.Format = mini_al.FormatType(99)
+	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig.Format = malgo.FormatType(99)
 	deviceConfig.Channels = 99
 	deviceConfig.SampleRate = 48000
 
-	_, err = mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, mini_al.DeviceCallbacks{})
+	_, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, malgo.DeviceCallbacks{})
 	if err == nil {
 		t.Fatalf("device init with invalid config")
 	}
 
-	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig.Format = malgo.FormatS16
 	deviceConfig.Channels = 2
 	deviceConfig.SampleRate = 48000
 
-	dev, err := mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, mini_al.DeviceCallbacks{
+	dev, err := malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, malgo.DeviceCallbacks{
 		Send: onSendFrames,
 	})
 	if err != nil {

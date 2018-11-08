@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
 func main() {
-	ctx, err := mini_al.InitContext(nil, mini_al.ContextConfig{}, func(message string) {
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
 		fmt.Printf("LOG <%v>\n", message)
 	})
 	if err != nil {
@@ -21,8 +21,8 @@ func main() {
 		ctx.Free()
 	}()
 
-	deviceConfig := mini_al.DefaultDeviceConfig()
-	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig.Format = malgo.FormatS16
 	deviceConfig.Channels = 2
 	deviceConfig.SampleRate = 48000
 	deviceConfig.Alsa.NoMMap = 1
@@ -31,7 +31,7 @@ func main() {
 	var capturedSampleCount uint32
 	pCapturedSamples := make([]byte, 0)
 
-	sizeInBytes := uint32(mini_al.SampleSizeInBytes(deviceConfig.Format))
+	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	onRecvFrames := func(framecount uint32, pSamples []byte) {
 		sampleCount := framecount * deviceConfig.Channels * sizeInBytes
 
@@ -43,10 +43,10 @@ func main() {
 	}
 
 	fmt.Println("Recording...")
-	captureCallbacks := mini_al.DeviceCallbacks{
+	captureCallbacks := malgo.DeviceCallbacks{
 		Recv: onRecvFrames,
 	}
-	device, err := mini_al.InitDevice(ctx.Context, mini_al.Capture, nil, deviceConfig, captureCallbacks)
+	device, err := malgo.InitDevice(ctx.Context, malgo.Capture, nil, deviceConfig, captureCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -77,11 +77,11 @@ func main() {
 	}
 
 	fmt.Println("Playing...")
-	playbackCallbacks := mini_al.DeviceCallbacks{
+	playbackCallbacks := malgo.DeviceCallbacks{
 		Send: onSendFrames,
 	}
 
-	device, err = mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, playbackCallbacks)
+	device, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, playbackCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

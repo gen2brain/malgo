@@ -1,4 +1,4 @@
-package mini_al
+package malgo
 
 // Backend type.
 type Backend uint32

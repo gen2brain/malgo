@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/go-mp3"
 	"github.com/youpy/go-wav"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, err := mini_al.InitContext(nil, mini_al.ContextConfig{}, func(message string) {
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
 		fmt.Printf("LOG <%v>\n", message)
 	})
 	if err != nil {
@@ -70,23 +70,23 @@ func main() {
 		ctx.Free()
 	}()
 
-	deviceConfig := mini_al.DefaultDeviceConfig()
-	deviceConfig.Format = mini_al.FormatS16
+	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig.Format = malgo.FormatS16
 	deviceConfig.Channels = channels
 	deviceConfig.SampleRate = sampleRate
 	deviceConfig.Alsa.NoMMap = 1
 
-	sampleSize := uint32(mini_al.SampleSizeInBytes(deviceConfig.Format))
+	sampleSize := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	// This is the function that's used for sending more data to the device for playback.
 	onSendSamples := func(frameCount uint32, samples []byte) uint32 {
 		n, _ := reader.Read(samples)
 		return uint32(n) / uint32(channels) / sampleSize
 	}
 
-	deviceCallbacks := mini_al.DeviceCallbacks{
+	deviceCallbacks := malgo.DeviceCallbacks{
 		Send: onSendSamples,
 	}
-	device, err := mini_al.InitDevice(ctx.Context, mini_al.Playback, nil, deviceConfig, deviceCallbacks)
+	device, err := malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, deviceCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -1,5 +1,5 @@
 // Package mal - Mini audio library (mini_al cgo bindings).
-package mini_al
+package malgo
 
 /*
 #cgo CFLAGS: -std=gnu99

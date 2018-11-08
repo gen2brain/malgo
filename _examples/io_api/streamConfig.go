@@ -1,18 +1,18 @@
 package io_api
 
-import "github.com/gen2brain/malgo/mini_al"
+import "github.com/gen2brain/malgo"
 
 // StreamConfig describes the parameters for an audio stream.
 // Default values will pick the defaults of the default device.
 type StreamConfig struct {
-	Format     mini_al.FormatType
+	Format     malgo.FormatType
 	Channels   int
 	SampleRate int
 }
 
-func (config StreamConfig) asDeviceConfig() mini_al.DeviceConfig {
-	deviceConfig := mini_al.DefaultDeviceConfig()
-	if config.Format != mini_al.FormatUnknown {
+func (config StreamConfig) asDeviceConfig() malgo.DeviceConfig {
+	deviceConfig := malgo.DefaultDeviceConfig()
+	if config.Format != malgo.FormatUnknown {
 		deviceConfig.Format = config.Format
 	}
 	if config.Channels != 0 {

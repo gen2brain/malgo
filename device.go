@@ -1,4 +1,4 @@
-package mini_al
+package malgo
 
 // #include "malgo.h"
 import "C"

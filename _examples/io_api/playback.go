@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/gen2brain/malgo/mini_al"
+	"github.com/gen2brain/malgo"
 )
 
 // Playback streams samples from a reader to the sound device.
@@ -18,7 +18,7 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 	defer close(abortChan)
 	aborted := false
 
-	deviceCallbacks := mini_al.DeviceCallbacks{
+	deviceCallbacks := malgo.DeviceCallbacks{
 		Send: func(frameCount uint32, samples []byte) uint32 {
 			if aborted {
 				return 0
@@ -40,5 +40,5 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 		},
 	}
 
-	return stream(ctx, abortChan, mini_al.Playback, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, malgo.Playback, deviceConfig, deviceCallbacks)
 }

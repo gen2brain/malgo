@@ -1,4 +1,4 @@
-package mini_al
+package malgo
 
 import (
 	"testing"
