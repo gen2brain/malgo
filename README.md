@@ -15,7 +15,7 @@ Requires `cgo` but does not require linking to anything on the Windows/macOS and
 
 ### Documentation
 
-Documentation on [GoDoc](https://godoc.org/github.com/gen2brain/malgo). Also check [examples](https://github.com/gen2brain/malgo/tree/master/mini_al/_examples).
+Documentation on [GoDoc](https://godoc.org/github.com/gen2brain/malgo). Also check [examples](https://github.com/gen2brain/malgo/tree/master/_examples).
 
 ### Platforms
 
