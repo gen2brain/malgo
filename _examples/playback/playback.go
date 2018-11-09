@@ -58,35 +58,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	device := mal.NewDevice()
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
+		fmt.Printf("LOG <%v>\n", message)
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer func() {
+		_ = ctx.Uninit()
+		ctx.Free()
+	}()
 
+	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig.Format = malgo.FormatS16
+	deviceConfig.Channels = channels
+	deviceConfig.SampleRate = sampleRate
+	deviceConfig.Alsa.NoMMap = 1
+
+	sampleSize := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	// This is the function that's used for sending more data to the device for playback.
-	onSendSamples := func(framecount uint32, psamples []byte) uint32 {
-		n, err := reader.Read(psamples)
-		if err == io.EOF {
-			return 0
-		}
-
-		return uint32(n) / device.Channels() / device.SampleSizeInBytes(device.Format())
+	onSendSamples := func(frameCount uint32, samples []byte) uint32 {
+		n, _ := reader.Read(samples)
+		return uint32(n) / uint32(channels) / sampleSize
 	}
 
-	err = device.ContextInit(nil, mal.ContextConfig{})
+	deviceCallbacks := malgo.DeviceCallbacks{
+		Send: onSendSamples,
+	}
+	device, err := malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, deviceCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	defer device.ContextUninit()
-
-	config := device.ConfigInitPlayback(mal.FormatS16, channels, sampleRate, onSendSamples)
-	config.Alsa.NoMMap = 1
-
-	err = device.Init(mal.Playback, nil, &config)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	defer device.Uninit()
 
 	err = device.Start()
@@ -97,6 +101,4 @@ func main() {
 
 	fmt.Println("Press Enter to quit...")
 	fmt.Scanln()
-
-	os.Exit(0)
 }
