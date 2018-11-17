@@ -6,9 +6,9 @@ package malgo
 #cgo mal_debug CFLAGS: -DMAL_DEBUG_OUTPUT=1
 
 #cgo linux LDFLAGS: -ldl -lpthread -lm
-#cgo openbsd LDFLAGS: -lpthread -lm -lossaudio
-#cgo netbsd LDFLAGS: -lpthread -lm -lossaudio
-#cgo freebsd LDFLAGS: -lpthread -lm
+#cgo openbsd LDFLAGS: -ldl -lpthread -lm
+#cgo netbsd LDFLAGS: -ldl -lpthread -lm
+#cgo freebsd LDFLAGS: -ldl -lpthread -lm
 #cgo android LDFLAGS: -lOpenSLES
 
 #cgo !noasm,!arm,!arm64 CFLAGS: -msse2
