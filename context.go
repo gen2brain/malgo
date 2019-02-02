@@ -71,9 +71,9 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	defer contextMutex.Unlock()
 
 	var playbackDevices *C.mal_device_info
-	var playbackDeviceCount C.uint
+	var playbackDeviceCount C.mal_uint32
 	var captureDevices *C.mal_device_info
-	var captureDeviceCount C.uint
+	var captureDeviceCount C.mal_uint32
 
 	result := C.mal_context_get_devices(ctx.cptr(),
 		&playbackDevices, &playbackDeviceCount,
