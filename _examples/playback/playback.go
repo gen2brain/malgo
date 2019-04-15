@@ -79,7 +79,7 @@ func main() {
 	sampleSize := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	// This is the function that's used for sending more data to the device for playback.
 	onSendSamples := func(frameCount uint32, samples []byte) uint32 {
-		n, _ := reader.Read(samples)
+		n, _ := io.ReadFull(reader, samples)
 		return uint32(n) / uint32(channels) / sampleSize
 	}
 
