@@ -5,20 +5,20 @@ type Backend uint32
 
 // Backend enumeration.
 const (
-	BackendNull Backend = iota
-	BackendWasapi
+	BackendWasapi = iota
 	BackendDsound
 	BackendWinmm
-	BackendAlsa
-	BackendPulseAudio
-	BackendJack
-	BackendCoreAudio
+	BackendCoreaudio
 	BackendSndio
 	BackendAudio4
 	BackendOss
+	BackendPulseaudio
+	BackendAlsa
+	BackendJack
+	BackendAaudio
 	BackendOpensl
-	BackendOpenal
-	BackendSdl
+	BackendWebaudio
+	BackendNull
 )
 
 // DeviceType type.
@@ -26,8 +26,10 @@ type DeviceType uint32
 
 // DeviceType enumeration.
 const (
-	Playback DeviceType = iota
+	Playback DeviceType = iota + 1
 	Capture
+	Duplex
+	Loopback
 )
 
 // ShareMode type.
@@ -82,40 +84,47 @@ type Result int32
 
 // Return codes.
 const (
-	Success                        = 0
-	Error                          = -1
-	InvalidArgs                    = -2
-	InvalidOperation               = -3
-	OutOfMemory                    = -4
-	FormatNotSupported             = -5
-	NoBackend                      = -6
-	NoDevice                       = -7
-	APINotFound                    = -8
-	DeviceBusy                     = -9
-	DeviceNotInitialized           = -10
-	DeviceNotStarted               = -11
-	DeviceNotStopped               = -12
-	DeviceAlreadyStarted           = -13
-	DeviceAlreadyStarting          = -14
-	DeviceAlreadyStopped           = -15
-	DeviceAlreadyStopping          = -16
-	FailedToMapDeviceBuffer        = -17
-	FailedToUnmapDeviceBuffer      = -18
-	FailedToInitBackend            = -19
-	FailedToReadDataFromClient     = -20
-	FailedToReadDataFromDevice     = -21
-	FailedToSendDataToClient       = -22
-	FailedToSendDataToDevice       = -23
-	FailedToOpenBackendDevice      = -24
-	FailedToStartBackendDevice     = -25
-	FailedToStopBackendDevice      = -26
-	FailedToConfigureBackendDevice = -27
-	FailedToCreateMutex            = -28
-	FailedToCreateEvent            = -29
-	FailedToCreateThread           = -30
-	InvalidDeviceConfig            = -31
-	AccessDenied                   = -32
-	TooLarge                       = -33
-	DeviceUnavailable              = -34
-	Timeout                        = -35
+	Success = 0
+
+	//  General errors.
+	Error            = -1 // a generic error
+	InvalidArgs      = -2
+	InvalidPperation = -3
+	OutOfMemory      = -4
+	AccessDenied     = -5
+	TooLarge         = -6
+	Timeout          = -7
+
+	// General miniaudio-specific errors.
+	FormatNotSupported     = -100
+	DeviceTypeNotSupported = -101
+	ShareModeNotSupported  = -102
+	NoBackend              = -103
+	NoDevice               = -104
+	APINotFound            = -105
+	InvalidDeviceConfig    = -106
+
+	// State errors.
+	DeviceBusy           = -200
+	DeviceNotInitialized = -201
+	DeviceNotStarted     = -202
+	DeviceUnavailable    = -203
+
+	// Operation errors.
+	FailedToMapDeviceBuffer        = -300
+	FailedToUnmapDeviceBuffer      = -301
+	FailedToInitBackend            = -302
+	FailedToReadDataFromDevice     = -304
+	FailedToReadDataFromClient     = -303
+	FailedToSendDataToClient       = -305
+	FailedToSendDataToDevice       = -306
+	FailedToOpenBackendDevice      = -307
+	FailedToStartBackendDevice     = -308
+	FailedToStopBackendDevice      = -309
+	FailedToConfigureBackendDevice = -310
+	FailedToCreateMutex            = -311
+	FailedToCreateEvent            = -312
+	FailedToCreateThread           = -313
 )
+
+const ()

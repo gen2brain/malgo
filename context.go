@@ -23,7 +23,7 @@ type PulseContextConfig struct {
 	// Enables autospawning of the PulseAudio daemon if necessary.
 	TryAutoSpawn uint32
 	// Padding
-	_ [4]byte
+	CgoPadding		[4]byte
 }
 
 // JackContextConfig type.
@@ -31,20 +31,20 @@ type JackContextConfig struct {
 	PClientName    *byte
 	TryStartServer uint32
 	// Padding
-	_ [4]byte
+	CgoPadding 		[4]byte
 }
 
 // ContextConfig type.
 type ContextConfig struct {
-	_              uintptr
+	LogCallback	   *[0]byte
 	ThreadPriority ThreadPriority
 	Alsa           AlsaContextConfig
 	Pulse          PulseContextConfig
 	Jack           JackContextConfig
 }
 
-func (d *ContextConfig) cptr() *C.mal_context_config {
-	return (*C.mal_context_config)(unsafe.Pointer(d))
+func (d *ContextConfig) cptr() *C.ma_context_config {
+	return (*C.ma_context_config)(unsafe.Pointer(d))
 }
 
 // Context is used for selecting and initializing the relevant backends.
@@ -54,14 +54,14 @@ type Context uintptr
 // function with implicit context defaults.
 const DefaultContext Context = 0
 
-func (ctx Context) cptr() *C.mal_context {
-	return (*C.mal_context)(unsafe.Pointer(ctx))
+func (ctx Context) cptr() *C.ma_context {
+	return (*C.ma_context)(unsafe.Pointer(ctx))
 }
 
 // Uninit uninitializes a context.
 // Results are undefined if you call this while any device created by this context is still active.
 func (ctx Context) Uninit() error {
-	result := C.mal_context_uninit(ctx.cptr())
+	result := C.ma_context_uninit(ctx.cptr())
 	return errorFromResult(Result(result))
 }
 
@@ -70,12 +70,12 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	contextMutex.Lock()
 	defer contextMutex.Unlock()
 
-	var playbackDevices *C.mal_device_info
-	var playbackDeviceCount C.mal_uint32
-	var captureDevices *C.mal_device_info
-	var captureDeviceCount C.mal_uint32
+	var playbackDevices *C.ma_device_info
+	var playbackDeviceCount C.ma_uint32
+	var captureDevices *C.ma_device_info
+	var captureDeviceCount C.ma_uint32
 
-	result := C.mal_context_get_devices(ctx.cptr(),
+	result := C.ma_context_get_devices(ctx.cptr(),
 		&playbackDevices, &playbackDeviceCount,
 		&captureDevices, &captureDeviceCount)
 	err := errorFromResult(Result(result))
@@ -99,7 +99,7 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 }
 
 var contextMutex sync.Mutex
-var logProcMap = make(map[*C.mal_context]LogProc)
+var logProcMap = make(map[*C.ma_context]LogProc)
 
 // SetLogProc sets the logging callback for the context.
 func (ctx Context) SetLogProc(proc LogProc) {
@@ -114,7 +114,7 @@ func (ctx Context) SetLogProc(proc LogProc) {
 }
 
 //export goLogCallback
-func goLogCallback(pContext *C.mal_context, pDevice *C.mal_device, message *C.char) {
+func goLogCallback(pContext *C.ma_context, pDevice *C.ma_device, message *C.char) {
 	contextMutex.Lock()
 	callback := logProcMap[pContext]
 	contextMutex.Unlock()
@@ -134,19 +134,19 @@ type AllocatedContext struct {
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
 	C.goSetContextConfigCallbacks(config.cptr())
-	ctx := AllocatedContext{Context: Context(C.mal_malloc(C.size_t(unsafe.Sizeof(C.mal_context{}))))}
+	ctx := AllocatedContext{Context: Context(C.ma_malloc(C.size_t(unsafe.Sizeof(C.ma_context{}))))}
 	if ctx.Context == 0 {
 		return nil, ErrOutOfMemory
 	}
 	ctx.SetLogProc(logProc)
 
-	var backendsArg *C.mal_backend
-	backendCountArg := (C.mal_uint32)(len(backends))
+	var backendsArg *C.ma_backend
+	backendCountArg := (C.ma_uint32)(len(backends))
 	if backendCountArg > 0 {
-		backendsArg = (*C.mal_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
+		backendsArg = (*C.ma_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
 	}
 
-	result := C.mal_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
+	result := C.ma_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
 	err := errorFromResult(Result(result))
 	if err != nil {
 		ctx.SetLogProc(nil)
@@ -163,6 +163,6 @@ func (ctx *AllocatedContext) Free() {
 		return
 	}
 	ctx.SetLogProc(nil)
-	C.mal_free(unsafe.Pointer(ctx.cptr()))
+	C.ma_free(unsafe.Pointer(ctx.cptr()))
 	ctx.Context = 0
 }

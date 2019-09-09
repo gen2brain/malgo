@@ -22,13 +22,13 @@ import "unsafe"
 
 // SampleSizeInBytes retrieves the size of a sample in bytes for the given format.
 func SampleSizeInBytes(format FormatType) int {
-	cformat := (C.mal_format)(format)
-	ret := C.mal_get_bytes_per_sample(cformat)
+	cformat := (C.ma_format)(format)
+	ret := C.ma_get_bytes_per_sample(cformat)
 	return int(ret)
 }
 
 const (
-	rawContextConfigSize = unsafe.Sizeof(C.mal_context_config{})
-	rawDeviceInfoSize    = unsafe.Sizeof(C.mal_device_info{})
-	rawDeviceConfigSize  = unsafe.Sizeof(C.mal_device_config{})
+	rawContextConfigSize = unsafe.Sizeof(C.ma_context_config{})
+	rawDeviceInfoSize    = unsafe.Sizeof(C.ma_device_info{})
+	rawDeviceConfigSize  = unsafe.Sizeof(C.ma_device_config{})
 )

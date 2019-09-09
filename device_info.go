@@ -9,7 +9,7 @@ import (
 )
 
 // DeviceID type.
-type DeviceID [unsafe.Sizeof(C.mal_device_id{})]byte
+type DeviceID [unsafe.Sizeof(C.ma_device_id{})]byte
 
 // String returns the string representation of the identifier.
 // It is the hexadecimal form of the underlying bytes of a minimum length of 2 digits, with trailing zeroes removed.
@@ -21,8 +21,8 @@ func (d DeviceID) String() string {
 	return hex.EncodeToString(d[:displayLen])
 }
 
-func (d *DeviceID) cptr() *C.mal_device_id {
-	return (*C.mal_device_id)(unsafe.Pointer(d))
+func (d *DeviceID) cptr() *C.ma_device_id {
+	return (*C.ma_device_id)(unsafe.Pointer(d))
 }
 
 // DeviceInfo type.
