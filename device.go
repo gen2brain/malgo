@@ -149,8 +149,20 @@ func goDataCallback(pDevice *C.ma_device, pOutput, pInput unsafe.Pointer, frameC
 	deviceMutex.Unlock()
 
 	if callback != nil {
-		inputSamples := extractCaptureSlice(pDevice, frameCount, pInput)
-		outputSamples := extractPlaybackSlice(pDevice, frameCount, pOutput)
+		inputSamples := []byte(nil)
+		outputSamples := []byte(nil)
+		if pOutput != nil {
+			sampleCount := uint32(frameCount) * uint32(pDevice.playback.channels)
+			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.playback.format))
+			outputSamples = (*[1 << 30]byte)(pOutput)[0 : sampleCount*sizeInBytes]
+		}
+
+		if pInput != nil {
+			sampleCount := uint32(frameCount) * uint32(pDevice.capture.channels)
+			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.capture.format))
+			inputSamples = (*[1 << 30]byte)(pInput)[0 : sampleCount*sizeInBytes]
+		}
+
 		callback(outputSamples, inputSamples, uint32(frameCount))
 	}
 }
@@ -164,24 +176,4 @@ func goStopCallback(pDevice *C.ma_device) {
 	if callback != nil {
 		callback()
 	}
-}
-
-func extractPlaybackSlice(pDevice *C.ma_device, frameCount C.ma_uint32, pSamples unsafe.Pointer) []byte {
-	if pSamples == nil {
-		return nil
-	}
-	sampleCount := uint32(frameCount) * uint32(pDevice.playback.channels)
-	sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.playback.format))
-	psamples := (*[1 << 30]byte)(pSamples)[0 : sampleCount*sizeInBytes]
-	return psamples
-}
-
-func extractCaptureSlice(pDevice *C.ma_device, frameCount C.ma_uint32, pSamples unsafe.Pointer) []byte {
-	if pSamples == nil {
-		return nil
-	}
-	sampleCount := uint32(frameCount) * uint32(pDevice.capture.channels)
-	sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.capture.format))
-	psamples := (*[1 << 30]byte)(pSamples)[0 : sampleCount*sizeInBytes]
-	return psamples
 }
