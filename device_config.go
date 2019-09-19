@@ -4,6 +4,12 @@ package malgo
 import "C"
 import "unsafe"
 
+// WasapiDeviceConfig type.
+type WasapiDeviceConfig struct {
+	NoAutoConvertSRC	uint32
+	NoDefaultQualitySRC	uint32
+}
+
 // AlsaDeviceConfig type.
 type AlsaDeviceConfig struct {
 	NoMMap uint32
@@ -38,6 +44,7 @@ type DeviceConfig struct {
 	PUserData				 *byte
 	Playback                 SubConfig
 	Capture                  SubConfig
+	Wasapi                   WasapiDeviceConfig
 	Alsa                     AlsaDeviceConfig
 	Pulse                    PulseDeviceConfig
 }
