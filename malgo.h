@@ -1,7 +1,7 @@
 #ifndef H_MALGO
 #define H_MALGO
 
-#include "miniaudio.h"
+#include "miniaudio/miniaudio.h"
 
 #ifdef __cplusplus
 extern "C" {

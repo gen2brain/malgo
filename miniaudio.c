@@ -1,7 +1,7 @@
 #include "_cgo_export.h"
 
 #define MA_IMPLEMENTATION
-#include "miniaudio.h"
+#include "miniaudio/miniaudio.h"
 
 static void goLogCallbackWrapper(ma_context *pContext, ma_device *pDevice, 
                                  ma_uint32 logLevel, const char *message) {
