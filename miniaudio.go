@@ -3,7 +3,7 @@ package malgo
 
 /*
 #cgo CFLAGS: -std=gnu99
-#cgo mal_debug CFLAGS: -DMAL_DEBUG_OUTPUT=1
+#cgo ma_debug CFLAGS: -DMAL_DEBUG_OUTPUT=1
 
 #cgo linux LDFLAGS: -ldl -lpthread -lm
 #cgo openbsd LDFLAGS: -ldl -lpthread -lm
@@ -13,7 +13,7 @@ package malgo
 
 #cgo !noasm,!arm,!arm64 CFLAGS: -msse2
 #cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
-#cgo noasm CFLAGS: -DMAL_NO_SSE2 -DMAL_NO_AVX -DMAL_NO_AVX512 -DMAL_NO_NEON
+#cgo noasm CFLAGS: -DMA_NO_SSE2 -DMA_NO_AVX2 -DMA_NO_AVX512 -DMA_NO_NEON
 
 #include "malgo.h"
 */
