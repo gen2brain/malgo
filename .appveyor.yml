@@ -17,6 +17,7 @@ install:
   - set PATH=%GOPATH%\bin;c:\go\bin;%MSYS_PATH%\usr\bin;%MSYS_PATH%\mingw32\bin;%PATH%
   - go version
   - go env
+  - git submodule update --init --recursive
 
 build_script:
   - bash -lc "cd /c/gopath/src/github.com/gen2brain/malgo && go build"
