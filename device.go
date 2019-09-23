@@ -7,21 +7,16 @@ import (
 	"unsafe"
 )
 
-// RecvProc type.
-type RecvProc func(framecount uint32, psamples []byte)
-
-// SendProc type.
-type SendProc func(framecount uint32, psamples []byte) uint32
+// DataProc type.
+type DataProc func(pOutputSample, pInputSamples []byte, framecount uint32)
 
 // StopProc type.
 type StopProc func()
 
 // DeviceCallbacks contains callbacks for one initialized device.
 type DeviceCallbacks struct {
-	// Recv is called for capturing devices.
-	Recv RecvProc
-	// Send is called for playback devices.
-	Send SendProc
+	// Data is called for the full duplex IO.
+	Data DataProc
 	// Stop is called when the device stopped.
 	Stop StopProc
 }
@@ -38,36 +33,33 @@ type Device uintptr
 // by Context.Devices() to be the default device.
 //
 // The returned instance has to be cleaned up using Uninit().
-func InitDevice(context Context, deviceType DeviceType, deviceID *DeviceID,
-	deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
-	dev := Device(C.mal_aligned_malloc(C.size_t(unsafe.Sizeof(C.mal_device{})), simdAlignment))
+func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
+	dev := Device(C.ma_aligned_malloc(C.size_t(unsafe.Sizeof(C.ma_device{})), simdAlignment))
 	if dev == 0 {
 		return nil, ErrOutOfMemory
 	}
 
 	rawDevice := dev.cptr()
 	C.goSetDeviceConfigCallbacks(deviceConfig.cptr())
-	result := C.mal_device_init(context.cptr(), C.mal_device_type(deviceType), deviceID.cptr(),
-		deviceConfig.cptr(), nil, rawDevice)
+	result := C.ma_device_init(context.cptr(), deviceConfig.cptr(), rawDevice)
 	if result != 0 {
 		dev.free()
 		return nil, errorFromResult(Result(result))
 	}
 	deviceMutex.Lock()
-	recvCallbacks[rawDevice] = deviceCallbacks.Recv
-	sendCallbacks[rawDevice] = deviceCallbacks.Send
+	dataCallbacks[rawDevice] = deviceCallbacks.Data
 	stopCallbacks[rawDevice] = deviceCallbacks.Stop
 	deviceMutex.Unlock()
 
 	return &dev, nil
 }
 
-func (dev Device) cptr() *C.mal_device {
-	return (*C.mal_device)(unsafe.Pointer(dev))
+func (dev Device) cptr() *C.ma_device {
+	return (*C.ma_device)(unsafe.Pointer(dev))
 }
 
 func (dev Device) free() {
-	C.mal_aligned_free(unsafe.Pointer(dev))
+	C.ma_aligned_free(unsafe.Pointer(dev))
 }
 
 // Type returns device type.
@@ -75,14 +67,24 @@ func (dev *Device) Type() DeviceType {
 	return DeviceType(dev.cptr()._type)
 }
 
-// Format returns device format.
-func (dev *Device) Format() FormatType {
-	return FormatType(dev.cptr().format)
+// Format returns device playback format.
+func (dev *Device) PlaybackFormat() FormatType {
+	return FormatType(dev.cptr().playback.format)
 }
 
-// Channels returns number of channels.
-func (dev *Device) Channels() uint32 {
-	return uint32(dev.cptr().channels)
+// Format returns device capture format.
+func (dev *Device) CaptureFormat() FormatType {
+	return FormatType(dev.cptr().capture.format)
+}
+
+// Channels returns number of playback channels.
+func (dev *Device) PlaybackChannels() uint32 {
+	return uint32(dev.cptr().playback.channels)
+}
+
+// Channels returns number of playback channels.
+func (dev *Device) CaptureChannels() uint32 {
+	return uint32(dev.cptr().capture.channels)
 }
 
 // SampleRate returns sample rate.
@@ -100,13 +102,13 @@ func (dev *Device) SampleRate() uint32 {
 // This API waits until the backend device has been started for real by the worker thread. It also
 // waits on a mutex for thread-safety.
 func (dev *Device) Start() error {
-	result := C.mal_device_start(dev.cptr())
+	result := C.ma_device_start(dev.cptr())
 	return errorFromResult(Result(result))
 }
 
 // IsStarted determines whether or not the device is started.
 func (dev *Device) IsStarted() bool {
-	result := C.mal_device_is_started(dev.cptr())
+	result := C.ma_device_is_started(dev.cptr())
 	return result != 0
 }
 
@@ -117,7 +119,7 @@ func (dev *Device) IsStarted() bool {
 // finish playback/recording of the current fragment which can take some time (usually proportionate to
 // the buffer size that was specified at initialization time).
 func (dev *Device) Stop() error {
-	result := C.mal_device_stop(dev.cptr())
+	result := C.ma_device_stop(dev.cptr())
 	return errorFromResult(Result(result))
 }
 
@@ -128,47 +130,45 @@ func (dev *Device) Stop() error {
 func (dev *Device) Uninit() {
 	rawDevice := dev.cptr()
 	deviceMutex.Lock()
-	delete(recvCallbacks, rawDevice)
-	delete(sendCallbacks, rawDevice)
+	delete(dataCallbacks, rawDevice)
 	delete(stopCallbacks, rawDevice)
 	deviceMutex.Unlock()
 
-	C.mal_device_uninit(rawDevice)
+	C.ma_device_uninit(rawDevice)
 	dev.free()
 }
 
 var deviceMutex sync.Mutex
-var recvCallbacks = make(map[*C.mal_device]RecvProc)
-var sendCallbacks = make(map[*C.mal_device]SendProc)
-var stopCallbacks = make(map[*C.mal_device]StopProc)
+var dataCallbacks = make(map[*C.ma_device]DataProc)
+var stopCallbacks = make(map[*C.ma_device]StopProc)
 
-//export goRecvCallback
-func goRecvCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples unsafe.Pointer) {
+//export goDataCallback
+func goDataCallback(pDevice *C.ma_device, pOutput, pInput unsafe.Pointer, frameCount C.ma_uint32) {
 	deviceMutex.Lock()
-	callback := recvCallbacks[pDevice]
+	callback := dataCallbacks[pDevice]
 	deviceMutex.Unlock()
 
 	if callback != nil {
-		samples := extractSlice(pDevice, frameCount, pSamples)
-		callback(uint32(frameCount), samples)
-	}
-}
+		inputSamples := []byte(nil)
+		outputSamples := []byte(nil)
+		if pOutput != nil {
+			sampleCount := uint32(frameCount) * uint32(pDevice.playback.channels)
+			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.playback.format))
+			outputSamples = (*[1 << 30]byte)(pOutput)[0 : sampleCount*sizeInBytes]
+		}
 
-//export goSendCallback
-func goSendCallback(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples unsafe.Pointer) (r C.mal_uint32) {
-	deviceMutex.Lock()
-	callback := sendCallbacks[pDevice]
-	deviceMutex.Unlock()
+		if pInput != nil {
+			sampleCount := uint32(frameCount) * uint32(pDevice.capture.channels)
+			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.capture.format))
+			inputSamples = (*[1 << 30]byte)(pInput)[0 : sampleCount*sizeInBytes]
+		}
 
-	if callback != nil {
-		samples := extractSlice(pDevice, frameCount, pSamples)
-		r = C.mal_uint32(callback(uint32(frameCount), samples))
+		callback(outputSamples, inputSamples, uint32(frameCount))
 	}
-	return r
 }
 
 //export goStopCallback
-func goStopCallback(pDevice *C.mal_device) {
+func goStopCallback(pDevice *C.ma_device) {
 	deviceMutex.Lock()
 	callback := stopCallbacks[pDevice]
 	deviceMutex.Unlock()
@@ -176,11 +176,4 @@ func goStopCallback(pDevice *C.mal_device) {
 	if callback != nil {
 		callback()
 	}
-}
-
-func extractSlice(pDevice *C.mal_device, frameCount C.mal_uint32, pSamples unsafe.Pointer) []byte {
-	sampleCount := uint32(frameCount) * uint32(pDevice.channels)
-	sizeInBytes := uint32(C.mal_get_bytes_per_sample(pDevice.format))
-	psamples := (*[1 << 30]byte)(pSamples)[0 : sampleCount*sizeInBytes]
-	return psamples
 }

@@ -4,6 +4,12 @@ package malgo
 import "C"
 import "unsafe"
 
+// WasapiDeviceConfig type.
+type WasapiDeviceConfig struct {
+	NoAutoConvertSRC	uint32
+	NoDefaultQualitySRC	uint32
+}
+
 // AlsaDeviceConfig type.
 type AlsaDeviceConfig struct {
 	NoMMap uint32
@@ -11,30 +17,40 @@ type AlsaDeviceConfig struct {
 
 // PulseDeviceConfig type.
 type PulseDeviceConfig struct {
-	StreamName *byte
+	StreamNamePlayback *int8
+	StreamNameCapture  *int8
+}
+
+// SubConfig type.
+type SubConfig struct {
+	DeviceID   *DeviceID
+	Format     FormatType
+	Channels   uint32
+	ChannelMap [C.MA_MAX_CHANNELS]uint8
+	ShareMode  ShareMode
+	CgoPadding [4]byte
 }
 
 // DeviceConfig type.
 type DeviceConfig struct {
-	Format                   FormatType
-	Channels                 uint32
+	DeviceType               DeviceType
 	SampleRate               uint32
-	ChannelMap               [32]byte
 	BufferSizeInFrames       uint32
 	BufferSizeInMilliseconds uint32
 	Periods                  uint32
-	ShareMode                ShareMode
 	PerformanceProfile       PerformanceProfile
-	_                        uintptr
-	_                        uintptr
-	_                        uintptr
+	DataCallback			 *[0]byte
+	StopCallback			 *[0]byte
+	PUserData				 *byte
+	Playback                 SubConfig
+	Capture                  SubConfig
+	Wasapi                   WasapiDeviceConfig
 	Alsa                     AlsaDeviceConfig
-	_                        [4]byte
 	Pulse                    PulseDeviceConfig
 }
 
-func (d *DeviceConfig) cptr() *C.mal_device_config {
-	return (*C.mal_device_config)(unsafe.Pointer(d))
+func (d *DeviceConfig) cptr() *C.ma_device_config {
+	return (*C.ma_device_config)(unsafe.Pointer(d))
 }
 
 // DefaultDeviceConfig returns a default device config.
