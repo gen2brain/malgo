@@ -22,31 +22,36 @@ func main() {
 	}()
 
 	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.Format = malgo.FormatS16
-	deviceConfig.Channels = 2
-	deviceConfig.SampleRate = 48000
+	deviceConfig.DeviceType = 3
+	deviceConfig.Capture.Format = malgo.FormatS16
+	deviceConfig.Capture.Channels = 1
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = 1
+	deviceConfig.SampleRate = 8000
 	deviceConfig.Alsa.NoMMap = 1
 
 	var playbackSampleCount uint32
 	var capturedSampleCount uint32
 	pCapturedSamples := make([]byte, 0)
 
-	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
-	onRecvFrames := func(framecount uint32, pSamples []byte) {
-		sampleCount := framecount * deviceConfig.Channels * sizeInBytes
+	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Capture.Format))
+	onRecvFrames := func(pSample2, pSample []byte, framecount uint32) {
+
+		sampleCount := framecount * deviceConfig.Capture.Channels * sizeInBytes
 
 		newCapturedSampleCount := capturedSampleCount + sampleCount
 
-		pCapturedSamples = append(pCapturedSamples, pSamples...)
+		pCapturedSamples = append(pCapturedSamples, pSample...)
 
 		capturedSampleCount = newCapturedSampleCount
+
 	}
 
 	fmt.Println("Recording...")
 	captureCallbacks := malgo.DeviceCallbacks{
-		Recv: onRecvFrames,
+		Data: onRecvFrames,
 	}
-	device, err := malgo.InitDevice(ctx.Context, malgo.Capture, nil, deviceConfig, captureCallbacks)
+	device, err := malgo.InitDevice(ctx.Context, deviceConfig, captureCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -63,25 +68,27 @@ func main() {
 
 	device.Uninit()
 
-	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
-		samplesToRead := framecount * deviceConfig.Channels * sizeInBytes
+	onSendFrames := func(pSample, nil []byte, framecount uint32) {
+		samplesToRead := framecount * deviceConfig.Playback.Channels * sizeInBytes
 		if samplesToRead > capturedSampleCount-playbackSampleCount {
 			samplesToRead = capturedSampleCount - playbackSampleCount
 		}
 
-		copy(pSamples, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
+		copy(pSample, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
 
 		playbackSampleCount += samplesToRead
 
-		return samplesToRead / deviceConfig.Channels / sizeInBytes
+		if playbackSampleCount == uint32(len(pCapturedSamples)) {
+			playbackSampleCount = 0
+		}
 	}
 
 	fmt.Println("Playing...")
 	playbackCallbacks := malgo.DeviceCallbacks{
-		Send: onSendFrames,
+		Data: onSendFrames,
 	}
 
-	device, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, playbackCallbacks)
+	device, err = malgo.InitDevice(ctx.Context, deviceConfig, playbackCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
