@@ -71,22 +71,21 @@ func main() {
 	}()
 
 	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.Format = malgo.FormatS16
-	deviceConfig.Channels = channels
+	deviceConfig.DeviceType = 1
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = channels
 	deviceConfig.SampleRate = sampleRate
 	deviceConfig.Alsa.NoMMap = 1
 
-	sampleSize := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
 	// This is the function that's used for sending more data to the device for playback.
-	onSendSamples := func(frameCount uint32, samples []byte) uint32 {
-		n, _ := io.ReadFull(reader, samples)
-		return uint32(n) / uint32(channels) / sampleSize
+	onSamples := func(pOutputSample, pInputSamples []byte, framecount uint32) {
+		io.ReadFull(reader, pOutputSample)
 	}
 
 	deviceCallbacks := malgo.DeviceCallbacks{
-		Send: onSendSamples,
+		Data: onSamples,
 	}
-	device, err := malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, deviceCallbacks)
+	device, err := malgo.InitDevice(ctx.Context, deviceConfig, deviceCallbacks)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
