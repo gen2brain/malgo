@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/gen2brain/malgo?branch=master)](https://goreportcard.com/report/github.com/gen2brain/malgo) 
 <!--[![Go Cover](http://gocover.io/_badge/github.com/gen2brain/malgo)](http://gocover.io/github.com/gen2brain/malgo)-->
 
-Go bindings for [mini_al](https://github.com/dr-soft/mini_al), mini audio library.
+Go bindings for [miniaudio](https://github.com/dr-soft/miniaudio) library.
 
 Requires `cgo` but does not require linking to anything on the Windows/macOS and it links only `-ldl` on Linux/BSDs.
 
