@@ -1,0 +1,1 @@
+This is a simple library for visualizing signals. This readme will be updated later when the library stabilizes.
