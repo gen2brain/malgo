@@ -8,7 +8,9 @@ import (
 
 func stream(ctx context.Context, abortChan chan error, deviceType malgo.DeviceType,
 	deviceConfig malgo.DeviceConfig, deviceCallbacks malgo.DeviceCallbacks) error {
-	device, err := malgo.InitDevice(malgo.DefaultContext, deviceType, nil, deviceConfig, deviceCallbacks)
+
+	deviceConfig.DeviceType = deviceType
+	device, err := malgo.InitDevice(malgo.DefaultContext, deviceConfig, deviceCallbacks)
 	if err != nil {
 		return err
 	}

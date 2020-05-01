@@ -19,12 +19,12 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 	aborted := false
 
 	deviceCallbacks := malgo.DeviceCallbacks{
-		Recv: func(frameCount uint32, samples []byte) {
+		Data: func(outputSamples, inputSamples []byte, frameCount uint32) {
 			if aborted {
 				return
 			}
 
-			_, err := w.Write(samples)
+			_, err := w.Write(inputSamples)
 			if err != nil {
 				aborted = true
 				abortChan <- err
