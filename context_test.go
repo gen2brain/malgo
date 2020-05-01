@@ -1,6 +1,7 @@
 package malgo_test
 
 import (
+	"flag"
 	"testing"
 
 	"github.com/gen2brain/malgo"
@@ -8,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var testWithHardware = flag.Bool("malgo.hardware", false, "run tests with expecting hardware")
 
 func TestContextLifecycle(t *testing.T) {
 	config := malgo.ContextConfig{ThreadPriority: malgo.ThreadPriorityNormal}
@@ -26,7 +29,7 @@ func TestContextLifecycle(t *testing.T) {
 }
 
 func TestContextDeviceEnumeration(t *testing.T) {
-	if testenvWithHardware {
+	if *testWithHardware {
 		t.Log("Running test expecting devices\n")
 	}
 
@@ -40,13 +43,13 @@ func TestContextDeviceEnumeration(t *testing.T) {
 
 	playbackDevices, err := ctx.Devices(malgo.Playback)
 	assert.Nil(t, err, "No error expected querying playback devices")
-	if testenvWithHardware {
+	if *testWithHardware {
 		assert.True(t, len(playbackDevices) > 0, "No playback devices found")
 	}
 
 	captureDevices, err := ctx.Devices(malgo.Capture)
 	assert.Nil(t, err, "No error expected querying capture devices")
-	if testenvWithHardware {
+	if *testWithHardware {
 		assert.True(t, len(captureDevices) > 0, "No capture devices found")
 	}
 }

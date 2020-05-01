@@ -22,7 +22,7 @@ func main() {
 	}()
 
 	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.DeviceType = 3
+	deviceConfig.DeviceType = malgo.Duplex
 	deviceConfig.Capture.Format = malgo.FormatS16
 	deviceConfig.Capture.Channels = 1
 	deviceConfig.Playback.Format = malgo.FormatS16

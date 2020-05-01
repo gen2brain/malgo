@@ -34,7 +34,7 @@ type Device uintptr
 //
 // The returned instance has to be cleaned up using Uninit().
 func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
-	dev := Device(C.ma_aligned_malloc(C.size_t(unsafe.Sizeof(C.ma_device{})), simdAlignment))
+	dev := Device(C.ma_aligned_malloc(C.size_t(unsafe.Sizeof(C.ma_device{})), simdAlignment, nil))
 	if dev == 0 {
 		return nil, ErrOutOfMemory
 	}
@@ -59,7 +59,7 @@ func (dev Device) cptr() *C.ma_device {
 }
 
 func (dev Device) free() {
-	C.ma_aligned_free(unsafe.Pointer(dev))
+	C.ma_aligned_free(unsafe.Pointer(dev), nil)
 }
 
 // Type returns device type.
