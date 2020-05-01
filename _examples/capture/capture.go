@@ -27,7 +27,7 @@ func main() {
 	deviceConfig.Capture.Channels = 1
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = 1
-	deviceConfig.SampleRate = 8000
+	deviceConfig.SampleRate = 44100
 	deviceConfig.Alsa.NoMMap = 1
 
 	var playbackSampleCount uint32

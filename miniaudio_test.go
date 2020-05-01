@@ -28,7 +28,7 @@ func TestCapturePlayback(t *testing.T) {
 	deviceConfig.Capture.Channels = 2
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = 2
-	deviceConfig.SampleRate = 48000
+	deviceConfig.SampleRate = 44100
 	deviceConfig.Alsa.NoMMap = 1
 
 	var playbackSampleCount uint32
@@ -68,7 +68,7 @@ func TestCapturePlayback(t *testing.T) {
 		t.Errorf("wrong number of channels")
 	}
 
-	if device.SampleRate() != 48000 {
+	if device.SampleRate() != 44100 {
 		t.Errorf("wrong samplerate")
 	}
 
@@ -143,7 +143,7 @@ func TestErrors(t *testing.T) {
 	deviceConfig.DeviceType = malgo.Playback
 	deviceConfig.Playback.Format = malgo.FormatType(99)
 	deviceConfig.Playback.Channels = 99
-	deviceConfig.SampleRate = 48000
+	deviceConfig.SampleRate = 44100
 
 	_, err = malgo.InitDevice(ctx.Context, deviceConfig, malgo.DeviceCallbacks{})
 	if err == nil {
@@ -152,7 +152,7 @@ func TestErrors(t *testing.T) {
 
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = 2
-	deviceConfig.SampleRate = 48000
+	deviceConfig.SampleRate = 44100
 
 	dev, err := malgo.InitDevice(ctx.Context, deviceConfig, malgo.DeviceCallbacks{
 		Data: onSendFrames,
