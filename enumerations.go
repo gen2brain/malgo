@@ -128,3 +128,25 @@ const (
 )
 
 const ()
+
+// ResampleAlgorithm enumeration
+type ResampleAlgorithm uint32
+
+const (
+	ResampleAlgorithmLinear ResampleAlgorithm = 0
+	ResampleAlgorithmSpeex  ResampleAlgorithm = 1
+)
+
+// IOSSessionCategory enumeration
+type IOSSessionCategory uint32
+
+const (
+	IOSSessionCategoryDefault       IOSSessionCategory = iota // AVAudioSessionCategoryPlayAndRecord with AVAudioSessionCategoryOptionDefaultToSpeaker.
+	IOSSessionCategoryNone                                    // Leave the session category unchanged.
+	IOSSessionCategoryAmbient                                 // AVAudioSessionCategoryAmbient
+	IOSSessionCategorySoloAmbient                             // AVAudioSessionCategorySoloAmbient
+	IOSSessionCategoryPlayback                                // AVAudioSessionCategoryPlayback
+	IOSSessionCategoryRecord                                  // AVAudioSessionCategoryRecord
+	IOSSessionCategoryPlayAndRecord                           // AVAudioSessionCategoryPlayAndRecord
+	IOSSessionCategoryMultiRoute                              // AVAudioSessionCategoryMultiRoute
+)

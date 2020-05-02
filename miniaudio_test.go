@@ -1,7 +1,6 @@
 package malgo_test
 
 import (
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"testing"
@@ -9,13 +8,6 @@ import (
 
 	"github.com/gen2brain/malgo"
 )
-
-var testenvWithHardware bool
-
-func init() {
-	flag.BoolVar(&testenvWithHardware, "malgo.hw", false, "Add flag to run tests expecting hardware")
-	flag.Parse()
-}
 
 func TestCapturePlayback(t *testing.T) {
 	onLog := func(message string) {
@@ -32,30 +24,34 @@ func TestCapturePlayback(t *testing.T) {
 	}()
 
 	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.Format = malgo.FormatS16
-	deviceConfig.Channels = 2
-	deviceConfig.SampleRate = 48000
+	deviceConfig.Capture.Format = malgo.FormatS16
+	deviceConfig.Capture.Channels = 2
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = 2
+	deviceConfig.SampleRate = 44100
 	deviceConfig.Alsa.NoMMap = 1
 
 	var playbackSampleCount uint32
 	var capturedSampleCount uint32
 	pCapturedSamples := make([]byte, 0)
 
-	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Format))
-	onRecvFrames := func(framecount uint32, pSamples []byte) {
-		sampleCount := framecount * deviceConfig.Channels * sizeInBytes
+	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Playback.Format))
+	onRecvFrames := func(outpuSamples, inputSamples []byte, framecount uint32) {
+		sampleCount := framecount * deviceConfig.Playback.Channels * sizeInBytes
 
 		newCapturedSampleCount := capturedSampleCount + sampleCount
 
-		pCapturedSamples = append(pCapturedSamples, pSamples...)
+		pCapturedSamples = append(pCapturedSamples, inputSamples...)
 
 		capturedSampleCount = newCapturedSampleCount
 	}
 
 	captureCallbacks := malgo.DeviceCallbacks{
-		Recv: onRecvFrames,
+		Data: onRecvFrames,
 	}
-	device, err := malgo.InitDevice(ctx.Context, malgo.Capture, nil, deviceConfig, captureCallbacks)
+	captureDeviceConfig := deviceConfig
+	captureDeviceConfig.DeviceType = malgo.Capture
+	device, err := malgo.InitDevice(ctx.Context, captureDeviceConfig, captureCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,15 +60,15 @@ func TestCapturePlayback(t *testing.T) {
 		t.Errorf("wrong device type")
 	}
 
-	if device.Format() != malgo.FormatS16 {
+	if device.PlaybackFormat() != malgo.FormatS16 {
 		t.Errorf("wrong format")
 	}
 
-	if device.Channels() != 2 {
+	if device.PlaybackChannels() != 2 {
 		t.Errorf("wrong number of channels")
 	}
 
-	if device.SampleRate() != 48000 {
+	if device.SampleRate() != 44100 {
 		t.Errorf("wrong samplerate")
 	}
 
@@ -89,24 +85,24 @@ func TestCapturePlayback(t *testing.T) {
 
 	device.Uninit()
 
-	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
-		samplesToRead := framecount * deviceConfig.Channels * sizeInBytes
+	onSendFrames := func(outputSamples, inputSamples []byte, framecount uint32) {
+		samplesToRead := framecount * deviceConfig.Playback.Channels * sizeInBytes
 		if samplesToRead > capturedSampleCount-playbackSampleCount {
 			samplesToRead = capturedSampleCount - playbackSampleCount
 		}
 
-		copy(pSamples, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
+		copy(outputSamples, pCapturedSamples[playbackSampleCount:playbackSampleCount+samplesToRead])
 
 		playbackSampleCount += samplesToRead
-
-		return samplesToRead / deviceConfig.Channels / sizeInBytes
 	}
 
 	playbackCallbacks := malgo.DeviceCallbacks{
-		Send: onSendFrames,
+		Data: onSendFrames,
 	}
 
-	device, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, playbackCallbacks)
+	playbackDeviceConfig := deviceConfig
+	playbackDeviceConfig.DeviceType = malgo.Playback
+	device, err = malgo.InitDevice(ctx.Context, playbackDeviceConfig, playbackCallbacks)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +122,6 @@ func TestCapturePlayback(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-
 	_, err := malgo.InitContext([]malgo.Backend{malgo.Backend(99)}, malgo.ContextConfig{}, nil)
 	if err == nil {
 		t.Fatalf("context init with invalid backend")
@@ -141,26 +136,26 @@ func TestErrors(t *testing.T) {
 		ctx.Free()
 	}()
 
-	onSendFrames := func(framecount uint32, pSamples []byte) uint32 {
-		return 0
+	onSendFrames := func(outputSamples, inputSamples []byte, framecount uint32) {
 	}
 
 	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.Format = malgo.FormatType(99)
-	deviceConfig.Channels = 99
-	deviceConfig.SampleRate = 48000
+	deviceConfig.DeviceType = malgo.Playback
+	deviceConfig.Playback.Format = malgo.FormatType(99)
+	deviceConfig.Playback.Channels = 99
+	deviceConfig.SampleRate = 44100
 
-	_, err = malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, malgo.DeviceCallbacks{})
+	_, err = malgo.InitDevice(ctx.Context, deviceConfig, malgo.DeviceCallbacks{})
 	if err == nil {
 		t.Fatalf("device init with invalid config")
 	}
 
-	deviceConfig.Format = malgo.FormatS16
-	deviceConfig.Channels = 2
-	deviceConfig.SampleRate = 48000
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = 2
+	deviceConfig.SampleRate = 44100
 
-	dev, err := malgo.InitDevice(ctx.Context, malgo.Playback, nil, deviceConfig, malgo.DeviceCallbacks{
-		Send: onSendFrames,
+	dev, err := malgo.InitDevice(ctx.Context, deviceConfig, malgo.DeviceCallbacks{
+		Data: onSendFrames,
 	})
 	if err != nil {
 		t.Fatal(err)
