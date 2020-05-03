@@ -9,7 +9,7 @@ import (
 )
 
 // DeviceID type.
-type DeviceID [unsafe.Sizeof(C.ma_device_id{})]byte
+type DeviceID [C.sizeof_ma_device_id]byte
 
 // String returns the string representation of the identifier.
 // It is the hexadecimal form of the underlying bytes of a minimum length of 2 digits, with trailing zeroes removed.

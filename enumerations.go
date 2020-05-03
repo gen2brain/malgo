@@ -150,3 +150,16 @@ const (
 	IOSSessionCategoryPlayAndRecord                           // AVAudioSessionCategoryPlayAndRecord
 	IOSSessionCategoryMultiRoute                              // AVAudioSessionCategoryMultiRoute
 )
+
+// IOSSessionCategoryOptions enumeration
+type IOSSessionCategoryOptions uint32
+
+const (
+	IOSSessionCategoryOptionMixWithOthers                        = 0x01 // AVAudioSessionCategoryOptionMixWithOthers
+	IOSSessionCategoryOptionDuckOthers                           = 0x02 // AVAudioSessionCategoryOptionDuckOthers
+	IOSSessionCategoryOptionAllowBluetooth                       = 0x04 // AVAudioSessionCategoryOptionAllowBluetooth
+	IOSSessionCategoryOptionDefaultToSpeaker                     = 0x08 // AVAudioSessionCategoryOptionDefaultToSpeaker
+	IOSSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers = 0x11 // AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers
+	IOSSessionCategoryOptionAllowBluetoothA2dp                   = 0x20 // AVAudioSessionCategoryOptionAllowBluetoothA2DP
+	IOSSessionCategoryOptionAllowAirPlay                         = 0x40 // AVAudioSessionCategoryOptionAllowAirPlay
+)
