@@ -34,7 +34,7 @@ type Device uintptr
 //
 // The returned instance has to be cleaned up using Uninit().
 func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
-	dev := Device(C.ma_aligned_malloc(C.size_t(unsafe.Sizeof(C.ma_device{})), simdAlignment, nil))
+	dev := Device(C.ma_aligned_malloc(C.sizeof_ma_device, simdAlignment, nil))
 	if dev == 0 {
 		return nil, ErrOutOfMemory
 	}

@@ -18,7 +18,6 @@ package malgo
 #include "malgo.h"
 */
 import "C"
-import "unsafe"
 
 // SampleSizeInBytes retrieves the size of a sample in bytes for the given format.
 func SampleSizeInBytes(format FormatType) int {
@@ -28,7 +27,7 @@ func SampleSizeInBytes(format FormatType) int {
 }
 
 const (
-	rawContextConfigSize = unsafe.Sizeof(C.ma_context_config{})
-	rawDeviceInfoSize    = unsafe.Sizeof(C.ma_device_info{})
-	rawDeviceConfigSize  = unsafe.Sizeof(C.ma_device_config{})
+	rawContextConfigSize = C.sizeof_ma_context_config
+	rawDeviceInfoSize    = C.sizeof_ma_device_info
+	rawDeviceConfigSize  = C.sizeof_ma_device_config
 )

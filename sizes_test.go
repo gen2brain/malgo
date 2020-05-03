@@ -8,7 +8,7 @@ import (
 )
 
 func TestRawSizes(t *testing.T) {
-	assert.Equal(t, unsafe.Sizeof(ContextConfig{}), rawContextConfigSize, "ContextConfig size mismatch")
-	assert.Equal(t, unsafe.Sizeof(DeviceConfig{}), rawDeviceConfigSize, "DeviceConfig size mismatch")
-	assert.Equal(t, unsafe.Sizeof(DeviceInfo{}), rawDeviceInfoSize, "DeviceInfo size mismatch")
+	assert.EqualValues(t, rawContextConfigSize, unsafe.Sizeof(ContextConfig{}), "ContextConfig size mismatch")
+	assert.EqualValues(t, rawDeviceConfigSize, unsafe.Sizeof(DeviceConfig{}), "DeviceConfig size mismatch")
+	assert.EqualValues(t, rawDeviceInfoSize, unsafe.Sizeof(DeviceInfo{}), "DeviceInfo size mismatch")
 }

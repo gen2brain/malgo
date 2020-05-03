@@ -152,7 +152,7 @@ type AllocatedContext struct {
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
 	C.goSetContextConfigCallbacks(config.cptr())
 	ctx := AllocatedContext{
-		Context: Context(C.ma_malloc(C.size_t(unsafe.Sizeof(C.ma_context{})), nil)),
+		Context: Context(C.ma_malloc(C.sizeof_ma_context, nil)),
 	}
 	if ctx.Context == 0 {
 		return nil, ErrOutOfMemory
