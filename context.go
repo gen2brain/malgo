@@ -29,7 +29,7 @@ type PulseContextConfig struct {
 // CoreAudioConfig type.
 type CoreAudioConfig struct {
 	SessionCategory        IOSSessionCategory
-	SessionCategoryOptions uint32
+	SessionCategoryOptions IOSSessionCategoryOptions
 }
 
 // JackContextConfig type.
