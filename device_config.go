@@ -26,8 +26,9 @@ type DeviceConfig struct {
 }
 
 // DefaultDeviceConfig returns a default device config.
-func DefaultDeviceConfig() DeviceConfig {
-	return DeviceConfig{}
+func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
+	config := C.ma_device_config_init(C.ma_device_type(deviceType))
+	return *(*DeviceConfig)(unsafe.Pointer(&config))
 }
 
 func (d *DeviceConfig) cptr() *C.ma_device_config {

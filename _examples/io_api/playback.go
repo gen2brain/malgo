@@ -13,7 +13,7 @@ import (
 // Playback will commence playing the samples provided from the reader until either the
 // reader returns an error, or the context signals done.
 func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
-	deviceConfig := config.asDeviceConfig()
+	deviceConfig := config.asDeviceConfig(malgo.Playback)
 	abortChan := make(chan error)
 	defer close(abortChan)
 	aborted := false
@@ -38,5 +38,5 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 		},
 	}
 
-	return stream(ctx, abortChan, malgo.Playback, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, deviceConfig, deviceCallbacks)
 }

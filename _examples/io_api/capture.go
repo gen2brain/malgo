@@ -13,7 +13,7 @@ import (
 // Capturing will commence writing the samples to the writer until either the
 // writer returns an error, or the context signals done.
 func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
-	deviceConfig := config.asDeviceConfig()
+	deviceConfig := config.asDeviceConfig(malgo.Capture)
 	abortChan := make(chan error)
 	defer close(abortChan)
 	aborted := false
@@ -32,5 +32,5 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 		},
 	}
 
-	return stream(ctx, abortChan, malgo.Capture, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, deviceConfig, deviceCallbacks)
 }
