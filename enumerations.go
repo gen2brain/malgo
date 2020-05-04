@@ -127,19 +127,19 @@ const (
 	FailedToCreateThread           = -313
 )
 
-const ()
-
-// ResampleAlgorithm enumeration
+// ResampleAlgorithm type.
 type ResampleAlgorithm uint32
 
+// ResampleAlgorithm enumeration.
 const (
 	ResampleAlgorithmLinear ResampleAlgorithm = 0
 	ResampleAlgorithmSpeex  ResampleAlgorithm = 1
 )
 
-// IOSSessionCategory enumeration
+// IOSSessionCategory type.
 type IOSSessionCategory uint32
 
+// IOSSessionCategory enumeration.
 const (
 	IOSSessionCategoryDefault       IOSSessionCategory = iota // AVAudioSessionCategoryPlayAndRecord with AVAudioSessionCategoryOptionDefaultToSpeaker.
 	IOSSessionCategoryNone                                    // Leave the session category unchanged.
@@ -151,9 +151,10 @@ const (
 	IOSSessionCategoryMultiRoute                              // AVAudioSessionCategoryMultiRoute
 )
 
-// IOSSessionCategoryOptions enumeration
+// IOSSessionCategoryOptions type.
 type IOSSessionCategoryOptions uint32
 
+// IOSSessionCategoryOptions enumeration.
 const (
 	IOSSessionCategoryOptionMixWithOthers                        = 0x01 // AVAudioSessionCategoryOptionMixWithOthers
 	IOSSessionCategoryOptionDuckOthers                           = 0x02 // AVAudioSessionCategoryOptionDuckOthers

@@ -67,22 +67,22 @@ func (dev *Device) Type() DeviceType {
 	return DeviceType(dev.cptr()._type)
 }
 
-// Format returns device playback format.
+// PlaybackFormat returns device playback format.
 func (dev *Device) PlaybackFormat() FormatType {
 	return FormatType(dev.cptr().playback.format)
 }
 
-// Format returns device capture format.
+// CaptureFormat returns device capture format.
 func (dev *Device) CaptureFormat() FormatType {
 	return FormatType(dev.cptr().capture.format)
 }
 
-// Channels returns number of playback channels.
+// PlaybackChannels returns number of playback channels.
 func (dev *Device) PlaybackChannels() uint32 {
 	return uint32(dev.cptr().playback.channels)
 }
 
-// Channels returns number of playback channels.
+// CaptureChannels returns number of playback channels.
 func (dev *Device) CaptureChannels() uint32 {
 	return uint32(dev.cptr().capture.channels)
 }

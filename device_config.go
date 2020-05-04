@@ -67,16 +67,19 @@ type PulseDeviceConfig struct {
 	StreamNameCapture  *int8
 }
 
+// ResampleConfig type.
 type ResampleConfig struct {
 	Algorithm ResampleAlgorithm
 	Linear    ResampleLinearConfig
 	Speex     ResampleSpeexConfig
 }
 
+// ResampleLinearConfig type.
 type ResampleLinearConfig struct {
 	LpfOrder uint32
 }
 
+// ResampleSpeexConfig type.
 type ResampleSpeexConfig struct {
 	Quality int
 }

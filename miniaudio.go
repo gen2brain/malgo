@@ -1,4 +1,4 @@
-// Package mal - Mini audio library (mini_al cgo bindings).
+// Package malgo - Mini audio library (miniaudio cgo bindings).
 package malgo
 
 /*
