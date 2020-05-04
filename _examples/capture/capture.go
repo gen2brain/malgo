@@ -21,8 +21,7 @@ func main() {
 		ctx.Free()
 	}()
 
-	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.DeviceType = malgo.Duplex
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Duplex)
 	deviceConfig.Capture.Format = malgo.FormatS16
 	deviceConfig.Capture.Channels = 1
 	deviceConfig.Playback.Format = malgo.FormatS16

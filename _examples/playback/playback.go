@@ -70,8 +70,7 @@ func main() {
 		ctx.Free()
 	}()
 
-	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.DeviceType = 1
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = channels
 	deviceConfig.SampleRate = sampleRate

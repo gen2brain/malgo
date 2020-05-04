@@ -10,8 +10,8 @@ type StreamConfig struct {
 	SampleRate int
 }
 
-func (config StreamConfig) asDeviceConfig() malgo.DeviceConfig {
-	deviceConfig := malgo.DefaultDeviceConfig()
+func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.DeviceConfig {
+	deviceConfig := malgo.DefaultDeviceConfig(deviceType)
 	if config.Format != malgo.FormatUnknown {
 		deviceConfig.Capture.Format = config.Format
 		deviceConfig.Playback.Format = config.Format

@@ -23,7 +23,7 @@ func TestCapturePlayback(t *testing.T) {
 		ctx.Free()
 	}()
 
-	deviceConfig := malgo.DefaultDeviceConfig()
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Capture)
 	deviceConfig.Capture.Format = malgo.FormatS16
 	deviceConfig.Capture.Channels = 2
 	deviceConfig.Playback.Format = malgo.FormatS16
@@ -139,8 +139,7 @@ func TestErrors(t *testing.T) {
 	onSendFrames := func(outputSamples, inputSamples []byte, framecount uint32) {
 	}
 
-	deviceConfig := malgo.DefaultDeviceConfig()
-	deviceConfig.DeviceType = malgo.Playback
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
 	deviceConfig.Playback.Format = malgo.FormatType(99)
 	deviceConfig.Playback.Channels = 99
 	deviceConfig.SampleRate = 44100
