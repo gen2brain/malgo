@@ -1,6 +1,6 @@
 /*
 Audio playback and capture library. Choice of public domain or MIT-0. See license statements at the end of this file.
-miniaudio - v0.10.4 - 2020-04-12
+miniaudio - v0.10.5 - 2020-05-05
 
 David Reid - davidreidsoftware@gmail.com
 
@@ -469,11 +469,17 @@ Build Options
   Disables the null backend.
 
 #define MA_NO_DECODING
-  Disables the decoding APIs.
+  Disables decoding APIs.
+
+#define MA_NO_ENCODING
+  Disables encoding APIs.
 
 #define MA_NO_DEVICE_IO
   Disables playback and recording. This will disable ma_context and ma_device APIs. This is useful if you only want to use miniaudio's data conversion and/or
   decoding APIs.
+
+#define MA_NO_GENERATION
+  Disables generation APIs such a ma_waveform and ma_noise.
 
 #define MA_NO_SSE2
   Disables SSE2 optimizations.
@@ -605,10 +611,14 @@ configure the output format, channel count, sample rate and channel map:
 
 When passing in NULL for decoder config in `ma_decoder_init*()`, the output format will be the same as that defined by the decoding backend.
 
-Data is read from the decoder as PCM frames:
+Data is read from the decoder as PCM frames. This will return the number of PCM frames actually read. If the return value is less than the requested number of
+PCM frames it means you've reached the end:
 
     ```c
     ma_uint64 framesRead = ma_decoder_read_pcm_frames(pDecoder, pFrames, framesToRead);
+    if (framesRead < framesToRead) {
+        // Reached the end.
+    }
     ```
 
 You can also seek to a specific frame like so:
@@ -618,6 +628,12 @@ You can also seek to a specific frame like so:
     if (result != MA_SUCCESS) {
         return false;   // An error occurred.
     }
+    ```
+
+If you want to loop back to the start, you can simply seek back to the first PCM frame:
+
+    ```c
+    ma_decoder_seek_to_pcm_frame(pDecoder, 0);
     ```
 
 When loading a decoder, miniaudio uses a trial and error technique to find the appropriate decoding backend. This can be unnecessarily inefficient if the type
@@ -1264,7 +1280,7 @@ Below are the supported waveform types:
 
 Noise
 -----
-miniaudio supports generation of white, pink and brownian noise via the `ma_noise` API. Example:
+miniaudio supports generation of white, pink and Brownian noise via the `ma_noise` API. Example:
 
     ```c
     ma_noise_config config = ma_noise_config_init(FORMAT, CHANNELS, ma_noise_type_white, SEED, amplitude);
@@ -1343,10 +1359,10 @@ If you want to correct for drift between the write pointer and the read pointer 
 the consumer thread, and the write pointer forward by the producer thread. If there is too much space between the pointers, move the read pointer forward. If
 there is too little space between the pointers, move the write pointer forward.
 
-You can use a ring buffer at the byte level instead of the PCM frame level by using the `ma_rb` API. This is exactly the sample, only you will use the `ma_rb`
+You can use a ring buffer at the byte level instead of the PCM frame level by using the `ma_rb` API. This is exactly the same, only you will use the `ma_rb`
 functions instead of `ma_pcm_rb` and instead of frame counts you'll pass around byte counts.
 
-The maximum size of the buffer in bytes is 0x7FFFFFFF-(MA_SIMD_ALIGNMENT-1) due to the most significant bit being used to encode a flag and the internally
+The maximum size of the buffer in bytes is 0x7FFFFFFF-(MA_SIMD_ALIGNMENT-1) due to the most significant bit being used to encode a loop flag and the internally
 managed buffers always being aligned to MA_SIMD_ALIGNMENT.
 
 Note that the ring buffer is only thread safe when used by a single consumer thread and single producer thread.
@@ -1382,8 +1398,8 @@ WASAPI
 ------
 - Low-latency shared mode will be disabled when using an application-defined sample rate which is different to the device's native sample rate. To work around
   this, set wasapi.noAutoConvertSRC to true in the device config. This is due to IAudioClient3_InitializeSharedAudioStream() failing when the
-  AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM flag is specified. Setting wasapi.noAutoConvertSRC will result in miniaudio's lower quality internal resampler being used
-  instead which will in turn enable the use of low-latency shared mode.
+  AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM flag is specified. Setting wasapi.noAutoConvertSRC will result in miniaudio's internal resampler being used instead which
+  will in turn enable the use of low-latency shared mode.
 
 PulseAudio
 ----------
@@ -1446,6 +1462,7 @@ extern "C" {
 #if defined(_MSC_VER) && !defined(__clang__)
     #pragma warning(push)
     #pragma warning(disable:4201)   /* nonstandard extension used: nameless struct/union */
+    #pragma warning(disable:4214)   /* nonstandard extension used: bit field types other than int */
     #pragma warning(disable:4324)   /* structure was padded due to alignment specifier */
 #else
     #pragma GCC diagnostic push
@@ -1867,6 +1884,11 @@ typedef struct
     void* (* onRealloc)(void* p, size_t sz, void* pUserData);
     void  (* onFree)(void* p, void* pUserData);
 } ma_allocation_callbacks;
+
+typedef struct
+{
+    ma_int32 state;
+} ma_lcg;
 
 
 /**************************************************************************************************************************************************************
@@ -4146,7 +4168,7 @@ Retrieves the size of the ma_context object.
 
 This is mainly for the purpose of bindings to know how much memory to allocate.
 */
-MA_API size_t ma_context_sizeof();
+MA_API size_t ma_context_sizeof(void);
 
 /*
 Enumerates over every device (both playback and capture).
@@ -5139,9 +5161,14 @@ Calculates a buffer size in frames from the specified number of milliseconds and
 MA_API ma_uint32 ma_calculate_buffer_size_in_frames_from_milliseconds(ma_uint32 bufferSizeInMilliseconds, ma_uint32 sampleRate);
 
 /*
+Copies PCM frames from one buffer to another.
+*/
+MA_API void ma_copy_pcm_frames(void* dst, const void* src, ma_uint64 frameCount, ma_format format, ma_uint32 channels);
+
+/*
 Copies silent frames into the given buffer.
 */
-MA_API void ma_zero_pcm_frames(void* p, ma_uint32 frameCount, ma_format format, ma_uint32 channels);
+MA_API void ma_zero_pcm_frames(void* p, ma_uint64 frameCount, ma_format format, ma_uint32 channels);
 
 /*
 Clips f32 samples.
@@ -5403,6 +5430,7 @@ MA_API ma_uint64 ma_encoder_write_pcm_frames(ma_encoder* pEncoder, const void* p
 Generation
 
 ************************************************************************************************************************************************************/
+#ifndef MA_NO_GENERATION
 typedef enum
 {
     ma_waveform_type_sine,
@@ -5437,11 +5465,6 @@ MA_API ma_result ma_waveform_set_frequency(ma_waveform* pWaveform, double freque
 MA_API ma_result ma_waveform_set_sample_rate(ma_waveform* pWaveform, ma_uint32 sampleRate);
 
 
-
-typedef struct
-{
-    ma_int32 state;
-} ma_lcg;
 
 typedef enum
 {
@@ -5484,6 +5507,7 @@ typedef struct
 MA_API ma_result ma_noise_init(const ma_noise_config* pConfig, ma_noise* pNoise);
 MA_API ma_uint64 ma_noise_read_pcm_frames(ma_noise* pNoise, void* pFramesOut, ma_uint64 frameCount);
 
+#endif  /* MA_NO_GENERATION */
 
 #ifdef __cplusplus
 }
@@ -5709,7 +5733,7 @@ IMPLEMENTATION
     #define MA_NO_XGETBV
 #endif
 
-static MA_INLINE ma_bool32 ma_has_sse2()
+static MA_INLINE ma_bool32 ma_has_sse2(void)
 {
 #if defined(MA_SUPPORT_SSE2)
     #if (defined(MA_X64) || defined(MA_X86)) && !defined(MA_NO_SSE2)
@@ -5769,7 +5793,7 @@ static MA_INLINE ma_bool32 ma_has_avx()
 }
 #endif
 
-static MA_INLINE ma_bool32 ma_has_avx2()
+static MA_INLINE ma_bool32 ma_has_avx2(void)
 {
 #if defined(MA_SUPPORT_AVX2)
     #if (defined(MA_X64) || defined(MA_X86)) && !defined(MA_NO_AVX2)
@@ -5804,7 +5828,7 @@ static MA_INLINE ma_bool32 ma_has_avx2()
 #endif
 }
 
-static MA_INLINE ma_bool32 ma_has_avx512f()
+static MA_INLINE ma_bool32 ma_has_avx512f(void)
 {
 #if defined(MA_SUPPORT_AVX512)
     #if (defined(MA_X64) || defined(MA_X86)) && !defined(MA_NO_AVX512)
@@ -5839,7 +5863,7 @@ static MA_INLINE ma_bool32 ma_has_avx512f()
 #endif
 }
 
-static MA_INLINE ma_bool32 ma_has_neon()
+static MA_INLINE ma_bool32 ma_has_neon(void)
 {
 #if defined(MA_SUPPORT_NEON)
     #if defined(MA_ARM) && !defined(MA_NO_NEON)
@@ -5875,7 +5899,7 @@ static MA_INLINE ma_bool32 ma_has_neon()
 #endif
 
 
-static MA_INLINE ma_bool32 ma_is_little_endian()
+static MA_INLINE ma_bool32 ma_is_little_endian(void)
 {
 #if defined(MA_X86) || defined(MA_X64)
     return MA_TRUE;
@@ -5885,7 +5909,7 @@ static MA_INLINE ma_bool32 ma_is_little_endian()
 #endif
 }
 
-static MA_INLINE ma_bool32 ma_is_big_endian()
+static MA_INLINE ma_bool32 ma_is_big_endian(void)
 {
     return !ma_is_little_endian();
 }
@@ -7177,22 +7201,22 @@ static MA_INLINE void ma_seed(ma_int32 seed)
     ma_lcg_seed(&g_maLCG, seed);
 }
 
-static MA_INLINE ma_int32 ma_rand_s32()
+static MA_INLINE ma_int32 ma_rand_s32(void)
 {
     return ma_lcg_rand_s32(&g_maLCG);
 }
 
-static MA_INLINE ma_uint32 ma_rand_u32()
+static MA_INLINE ma_uint32 ma_rand_u32(void)
 {
     return ma_lcg_rand_u32(&g_maLCG);
 }
 
-static MA_INLINE double ma_rand_f64()
+static MA_INLINE double ma_rand_f64(void)
 {
     return ma_lcg_rand_f64(&g_maLCG);
 }
 
-static MA_INLINE float ma_rand_f32()
+static MA_INLINE float ma_rand_f32(void)
 {
     return ma_lcg_rand_f32(&g_maLCG);
 }
@@ -7383,7 +7407,7 @@ static void ma__free_from_callbacks(void* p, const ma_allocation_callbacks* pAll
     }
 }
 
-static ma_allocation_callbacks ma_allocation_callbacks_init_default()
+static ma_allocation_callbacks ma_allocation_callbacks_init_default(void)
 {
     ma_allocation_callbacks callbacks;
     callbacks.pUserData = NULL;
@@ -7858,6 +7882,51 @@ static void ma_post_log_message(ma_context* pContext, ma_device* pDevice, ma_uin
 #endif
 }
 
+/*
+We need to emulate _vscprintf() for the VC6 build. This can be more efficient, but since it's only VC6, and it's just a
+logging function, I'm happy to keep this simple. In the VC6 build we can implement this in terms of _vsnprintf().
+*/
+#if defined(_MSC_VER) && _MSC_VER < 1900
+int ma_vscprintf(const char* format, va_list args)
+{
+#if _MSC_VER > 1200
+    return _vscprintf(format, args);
+#else
+    int result;
+    char* pTempBuffer = NULL;
+    size_t tempBufferCap = 1024;
+
+    if (format == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+	for (;;) {
+        char* pNewTempBuffer = (char*)ma_realloc(pTempBuffer, tempBufferCap, NULL);    /* TODO: Add support for custom memory allocators? */
+        if (pNewTempBuffer == NULL) {
+            ma_free(pTempBuffer, NULL);
+            errno = ENOMEM;
+            return -1;  /* Out of memory. */
+        }
+
+        pTempBuffer = pNewTempBuffer;
+
+        result = _vsnprintf(pTempBuffer, tempBufferCap, format, args);
+        ma_free(pTempBuffer, NULL);
+        
+        if (result != -1) {
+            break;  /* Got it. */
+        }
+
+        /* Buffer wasn't big enough. Ideally it'd be nice to use an error code to know the reason for sure, but this is reliable enough. */
+        tempBufferCap *= 2;
+	}
+
+    return result;
+#endif
+}
+#endif
+
 /* Posts a formatted log message. */
 static void ma_post_log_messagev(ma_context* pContext, ma_device* pDevice, ma_uint32 logLevel, const char* pFormat, va_list args)
 {
@@ -7874,7 +7943,7 @@ static void ma_post_log_messagev(ma_context* pContext, ma_device* pDevice, ma_ui
         need to restrict this branch to Visual Studio. For other compilers we need to just not support formatted logging because I don't want the security risk of overflowing
         a fixed sized stack allocated buffer.
         */
-#if defined (_MSC_VER)
+    #if defined(_MSC_VER) && _MSC_VER >= 1200   /* 1200 = VC6 */
         int formattedLen;
         va_list args2;
 
@@ -7883,7 +7952,7 @@ static void ma_post_log_messagev(ma_context* pContext, ma_device* pDevice, ma_ui
     #else
         args2 = args;
     #endif
-        formattedLen = _vscprintf(pFormat, args2);
+        formattedLen = ma_vscprintf(pFormat, args2);
         va_end(args2);
 
         if (formattedLen > 0) {
@@ -7903,24 +7972,30 @@ static void ma_post_log_messagev(ma_context* pContext, ma_device* pDevice, ma_ui
 
             pFormattedMessage = (char*)ma_malloc(formattedLen + 1, pAllocationCallbacks);
             if (pFormattedMessage != NULL) {
+                /* We'll get errors on newer versions of Visual Studio if we try to use vsprintf().  */
+            #if _MSC_VER >= 1400    /* 1400 = Visual Studio 2005 */
                 vsprintf_s(pFormattedMessage, formattedLen + 1, pFormat, args);
+            #else
+                vsprintf(pFormattedMessage, pFormat, args);
+            #endif
+                
                 ma_post_log_message(pContext, pDevice, logLevel, pFormattedMessage);
                 ma_free(pFormattedMessage, pAllocationCallbacks);
             }
         }
-#else
+    #else
         /* Can't do anything because we don't have a safe way of to emulate vsnprintf() without a manual solution. */
         (void)pContext;
         (void)pDevice;
         (void)logLevel;
         (void)pFormat;
         (void)args;
-#endif
+    #endif
     }
 #endif
 }
 
-static MA_INLINE void ma_post_log_messagef(ma_context* pContext, ma_device* pDevice, ma_uint32 logLevel, const char* pFormat, ...)
+MA_API void ma_post_log_messagef(ma_context* pContext, ma_device* pDevice, ma_uint32 logLevel, const char* pFormat, ...)
 {
     va_list args;
     va_start(args, pFormat);
@@ -8380,8 +8455,8 @@ static void ma_sleep__posix(ma_uint32 milliseconds)
 #else
     #if _POSIX_C_SOURCE >= 199309L
         struct timespec ts;
-        ts.tv_sec  = milliseconds / 1000000;
-        ts.tv_nsec = milliseconds % 1000000 * 1000000;
+        ts.tv_sec  = milliseconds / 1000;
+        ts.tv_nsec = milliseconds % 1000 * 1000000;
         nanosleep(&ts, NULL);
     #else
         struct timeval tv;
@@ -8770,9 +8845,14 @@ MA_API ma_uint32 ma_calculate_buffer_size_in_frames_from_milliseconds(ma_uint32 
     return bufferSizeInMilliseconds * (sampleRate/1000); 
 }
 
-MA_API void ma_zero_pcm_frames(void* p, ma_uint32 frameCount, ma_format format, ma_uint32 channels)
+MA_API void ma_copy_pcm_frames(void* dst, const void* src, ma_uint64 frameCount, ma_format format, ma_uint32 channels)
 {
-    MA_ZERO_MEMORY(p, frameCount * ma_get_bytes_per_frame(format, channels));
+    ma_copy_memory_64(dst, src, frameCount * ma_get_bytes_per_frame(format, channels));
+}
+
+MA_API void ma_zero_pcm_frames(void* p, ma_uint64 frameCount, ma_format format, ma_uint32 channels)
+{
+    ma_zero_memory_64(p, frameCount * ma_get_bytes_per_frame(format, channels));
 }
 
 MA_API void ma_clip_samples_f32(float* p, ma_uint32 sampleCount)
@@ -11105,8 +11185,8 @@ static ma_result ma_context_get_device_info_from_IAudioClient__wasapi(ma_context
                         ma_format format = formatsToSearch[iFormat];
                         ma_uint32 iSampleRate;
 
-                        wf.Format.wBitsPerSample       = (WORD)ma_get_bytes_per_sample(format)*8;
-                        wf.Format.nBlockAlign          = (wf.Format.nChannels * wf.Format.wBitsPerSample) / 8;
+                        wf.Format.wBitsPerSample       = (WORD)(ma_get_bytes_per_sample(format)*8);
+                        wf.Format.nBlockAlign          = (WORD)(wf.Format.nChannels * wf.Format.wBitsPerSample / 8);
                         wf.Format.nAvgBytesPerSec      = wf.Format.nBlockAlign * wf.Format.nSamplesPerSec;
                         wf.Samples.wValidBitsPerSample = /*(format == ma_format_s24_32) ? 24 :*/ wf.Format.wBitsPerSample;
                         if (format == ma_format_f32) {
@@ -14056,8 +14136,8 @@ static ma_result ma_config_to_WAVEFORMATEXTENSIBLE(ma_format format, ma_uint32 c
     pWF->Format.wFormatTag           = WAVE_FORMAT_EXTENSIBLE;
     pWF->Format.nChannels            = (WORD)channels;
     pWF->Format.nSamplesPerSec       = (DWORD)sampleRate;
-    pWF->Format.wBitsPerSample       = (WORD)ma_get_bytes_per_sample(format)*8;
-    pWF->Format.nBlockAlign          = (pWF->Format.nChannels * pWF->Format.wBitsPerSample) / 8;
+    pWF->Format.wBitsPerSample       = (WORD)(ma_get_bytes_per_sample(format)*8);
+    pWF->Format.nBlockAlign          = (WORD)(pWF->Format.nChannels * pWF->Format.wBitsPerSample / 8);
     pWF->Format.nAvgBytesPerSec      = pWF->Format.nBlockAlign * pWF->Format.nSamplesPerSec;
     pWF->Samples.wValidBitsPerSample = pWF->Format.wBitsPerSample;
     pWF->dwChannelMask               = ma_channel_map_to_channel_mask__win32(pChannelMap, channels);
@@ -14127,7 +14207,7 @@ static ma_result ma_device_init__dsound(ma_context* pContext, const ma_device_co
             return result;
         }
 
-        wf.Format.nBlockAlign          = (wf.Format.nChannels * wf.Format.wBitsPerSample) / 8;
+        wf.Format.nBlockAlign          = (WORD)(wf.Format.nChannels * wf.Format.wBitsPerSample / 8);
         wf.Format.nAvgBytesPerSec      = wf.Format.nBlockAlign * wf.Format.nSamplesPerSec;
         wf.Samples.wValidBitsPerSample = wf.Format.wBitsPerSample;
         wf.SubFormat                   = MA_GUID_KSDATAFORMAT_SUBTYPE_PCM;
@@ -14250,7 +14330,7 @@ static ma_result ma_device_init__dsound(ma_context* pContext, const ma_device_co
             }
         }
 
-        wf.Format.nBlockAlign     = (wf.Format.nChannels * wf.Format.wBitsPerSample) / 8;
+        wf.Format.nBlockAlign     = (WORD)(wf.Format.nChannels * wf.Format.wBitsPerSample / 8);
         wf.Format.nAvgBytesPerSec = wf.Format.nBlockAlign * wf.Format.nSamplesPerSec;
 
         /*
@@ -15150,7 +15230,7 @@ static ma_result ma_formats_flags_to_WAVEFORMATEX__winmm(DWORD dwFormats, WORD c
         }
     }
 
-    pWF->nBlockAlign     = (pWF->nChannels * pWF->wBitsPerSample) / 8;
+    pWF->nBlockAlign     = (WORD)(pWF->nChannels * pWF->wBitsPerSample / 8);
     pWF->nAvgBytesPerSec = pWF->nBlockAlign * pWF->nSamplesPerSec;
 
     return MA_SUCCESS;
@@ -16379,9 +16459,9 @@ typedef ma_snd_pcm_sframes_t (* ma_snd_pcm_avail_proc)                         (
 typedef ma_snd_pcm_sframes_t (* ma_snd_pcm_avail_update_proc)                  (ma_snd_pcm_t *pcm);
 typedef int                  (* ma_snd_pcm_wait_proc)                          (ma_snd_pcm_t *pcm, int timeout);
 typedef int                  (* ma_snd_pcm_info_proc)                          (ma_snd_pcm_t *pcm, ma_snd_pcm_info_t* info);
-typedef size_t               (* ma_snd_pcm_info_sizeof_proc)                   ();
+typedef size_t               (* ma_snd_pcm_info_sizeof_proc)                   (void);
 typedef const char*          (* ma_snd_pcm_info_get_name_proc)                 (const ma_snd_pcm_info_t* info);
-typedef int                  (* ma_snd_config_update_free_global_proc)         ();
+typedef int                  (* ma_snd_config_update_free_global_proc)         (void);
 
 /* This array specifies each of the common devices that can be used for both playback and capture. */
 static const char* g_maCommonDeviceNamesALSA[] = {
@@ -18910,7 +18990,7 @@ typedef void (* ma_pa_free_cb_t)          (void* p);
 #endif
 
 
-typedef ma_pa_mainloop*          (* ma_pa_mainloop_new_proc)                   ();
+typedef ma_pa_mainloop*          (* ma_pa_mainloop_new_proc)                   (void);
 typedef void                     (* ma_pa_mainloop_free_proc)                  (ma_pa_mainloop* m);
 typedef ma_pa_mainloop_api*      (* ma_pa_mainloop_get_api_proc)               (ma_pa_mainloop* m);
 typedef int                      (* ma_pa_mainloop_iterate_proc)               (ma_pa_mainloop* m, int block, int* retval);
@@ -20752,7 +20832,7 @@ typedef void (* ma_JackShutdownCallback)  (void* arg);
 
 typedef ma_jack_client_t* (* ma_jack_client_open_proc)             (const char* client_name, ma_jack_options_t options, ma_jack_status_t* status, ...);
 typedef int               (* ma_jack_client_close_proc)            (ma_jack_client_t* client);
-typedef int               (* ma_jack_client_name_size_proc)        ();
+typedef int               (* ma_jack_client_name_size_proc)        (void);
 typedef int               (* ma_jack_set_process_callback_proc)    (ma_jack_client_t* client, ma_JackProcessCallback process_callback, void* arg);
 typedef int               (* ma_jack_set_buffer_size_callback_proc)(ma_jack_client_t* client, ma_JackBufferSizeCallback bufsize_callback, void* arg);
 typedef void              (* ma_jack_on_shutdown_proc)             (ma_jack_client_t* client, ma_JackShutdownCallback function, void* arg);
@@ -32689,7 +32769,11 @@ MA_API ma_linear_resampler_config ma_linear_resampler_config_init(ma_format form
 
 static ma_result ma_linear_resampler_set_rate_internal(ma_linear_resampler* pResampler, ma_uint32 sampleRateIn, ma_uint32 sampleRateOut, ma_bool32 isResamplerAlreadyInitialized)
 {
+    ma_result result;
     ma_uint32 gcf;
+    ma_uint32 lpfSampleRate;
+    double lpfCutoffFrequency;
+    ma_lpf_config lpfConfig;
 
     if (pResampler == NULL) {
         return MA_INVALID_ARGS;
@@ -32707,34 +32791,28 @@ static ma_result ma_linear_resampler_set_rate_internal(ma_linear_resampler* pRes
     pResampler->config.sampleRateIn  /= gcf;
     pResampler->config.sampleRateOut /= gcf;
 
-    if (pResampler->config.lpfOrder > 0) {
-        ma_result result;
-        ma_uint32 lpfSampleRate;
-        double lpfCutoffFrequency;
-        ma_lpf_config lpfConfig;
+    /* Always initialize the low-pass filter, even when the order is 0. */
+    if (pResampler->config.lpfOrder > MA_MAX_FILTER_ORDER) {
+        return MA_INVALID_ARGS;
+    }
 
-        if (pResampler->config.lpfOrder > MA_MAX_FILTER_ORDER) {
-            return MA_INVALID_ARGS;
-        }
+    lpfSampleRate      = (ma_uint32)(ma_max(pResampler->config.sampleRateIn, pResampler->config.sampleRateOut));
+    lpfCutoffFrequency = (   double)(ma_min(pResampler->config.sampleRateIn, pResampler->config.sampleRateOut) * 0.5 * pResampler->config.lpfNyquistFactor);
 
-        lpfSampleRate      = (ma_uint32)(ma_max(pResampler->config.sampleRateIn, pResampler->config.sampleRateOut));
-        lpfCutoffFrequency = (   double)(ma_min(pResampler->config.sampleRateIn, pResampler->config.sampleRateOut) * 0.5 * pResampler->config.lpfNyquistFactor);
+    lpfConfig = ma_lpf_config_init(pResampler->config.format, pResampler->config.channels, lpfSampleRate, lpfCutoffFrequency, pResampler->config.lpfOrder);
 
-        lpfConfig = ma_lpf_config_init(pResampler->config.format, pResampler->config.channels, lpfSampleRate, lpfCutoffFrequency, pResampler->config.lpfOrder);
+    /*
+    If the resampler is alreay initialized we don't want to do a fresh initialization of the low-pass filter because it will result in the cached frames
+    getting cleared. Instead we re-initialize the filter which will maintain any cached frames.
+    */
+    if (isResamplerAlreadyInitialized) {
+        result = ma_lpf_reinit(&lpfConfig, &pResampler->lpf);
+    } else {
+        result = ma_lpf_init(&lpfConfig, &pResampler->lpf);
+    }
 
-        /*
-        If the resampler is alreay initialized we don't want to do a fresh initialization of the low-pass filter because it will result in the cached frames
-        getting cleared. Instead we re-initialize the filter which will maintain any cached frames.
-        */
-        if (isResamplerAlreadyInitialized) {
-            result = ma_lpf_reinit(&lpfConfig, &pResampler->lpf);
-        } else {
-            result = ma_lpf_init(&lpfConfig, &pResampler->lpf);
-        }
-
-        if (result != MA_SUCCESS) {
-            return result;
-        }
+    if (result != MA_SUCCESS) {
+        return result;
     }
 
     pResampler->inAdvanceInt  = pResampler->config.sampleRateIn / pResampler->config.sampleRateOut;
@@ -35443,8 +35521,8 @@ static MA_INLINE void ma_pcm_u8_to_s16__reference(void* dst, const void* src, ma
     ma_uint64 i;
     for (i = 0; i < count; i += 1) {
         ma_int16 x = src_u8[i];
-        x = x - 128;
-        x = x << 8;
+        x = (ma_int16)(x - 128);
+        x = (ma_int16)(x << 8);
         dst_s16[i] = x;
     }
 
@@ -35508,7 +35586,7 @@ static MA_INLINE void ma_pcm_u8_to_s24__reference(void* dst, const void* src, ma
     ma_uint64 i;
     for (i = 0; i < count; i += 1) {
         ma_int16 x = src_u8[i];
-        x = x - 128;
+        x = (ma_int16)(x - 128);
 
         dst_s24[i*3+0] = 0;
         dst_s24[i*3+1] = 0;
@@ -35787,8 +35865,8 @@ static MA_INLINE void ma_pcm_s16_to_u8__reference(void* dst, const void* src, ma
         ma_uint64 i;
         for (i = 0; i < count; i += 1) {
             ma_int16 x = src_s16[i];
-            x = x >> 8;
-            x = x + 128;
+            x = (ma_int16)(x >> 8);
+            x = (ma_int16)(x + 128);
             dst_u8[i] = (ma_uint8)x;
         }
     } else {
@@ -35804,8 +35882,8 @@ static MA_INLINE void ma_pcm_s16_to_u8__reference(void* dst, const void* src, ma
                 x = 0x7FFF;
             }
 
-            x = x >> 8;
-            x = x + 128;
+            x = (ma_int16)(x >> 8);
+            x = (ma_int16)(x + 128);
             dst_u8[i] = (ma_uint8)x;
         }
     }
@@ -36134,8 +36212,7 @@ static MA_INLINE void ma_pcm_s24_to_u8__reference(void* dst, const void* src, ma
     if (ditherMode == ma_dither_mode_none) {
         ma_uint64 i;
         for (i = 0; i < count; i += 1) {
-            ma_int8 x = (ma_int8)src_s24[i*3 + 2] + 128;
-            dst_u8[i] = (ma_uint8)x;
+            dst_u8[i] = (ma_uint8)((ma_int8)src_s24[i*3 + 2] + 128);
         }
     } else {
         ma_uint64 i;
@@ -36214,9 +36291,9 @@ static MA_INLINE void ma_pcm_s24_to_s16__reference(void* dst, const void* src, m
     if (ditherMode == ma_dither_mode_none) {
         ma_uint64 i;
         for (i = 0; i < count; i += 1) {
-            ma_uint16 dst_lo = ((ma_uint16)src_s24[i*3 + 1]);
-            ma_uint16 dst_hi = ((ma_uint16)src_s24[i*3 + 2]) << 8;
-            dst_s16[i] = (ma_int16)dst_lo | dst_hi;
+            ma_uint16 dst_lo =            ((ma_uint16)src_s24[i*3 + 1]);
+            ma_uint16 dst_hi = (ma_uint16)((ma_uint16)src_s24[i*3 + 2] << 8);
+            dst_s16[i] = (ma_int16)(dst_lo | dst_hi);
         }
     } else {
         ma_uint64 i;
@@ -41597,6 +41674,7 @@ MA_API ma_uint64 ma_encoder_write_pcm_frames(ma_encoder* pEncoder, const void* p
 Generation
 
 **************************************************************************************************************************************************************/
+#ifndef MA_NO_GENERATION
 MA_API ma_waveform_config ma_waveform_config_init(ma_format format, ma_uint32 channels, ma_uint32 sampleRate, ma_waveform_type type, double amplitude, double frequency)
 {
     ma_waveform_config config;
@@ -42266,6 +42344,8 @@ MA_API ma_uint64 ma_noise_read_pcm_frames(ma_noise* pNoise, void* pFramesOut, ma
     MA_ASSERT(MA_FALSE);
     return 0;
 }
+#endif /* MA_NO_GENERATION */
+
 
 /* End globally disabled warnings. */
 #if defined(_MSC_VER)
@@ -42410,6 +42490,15 @@ The following miscellaneous changes have also been made.
 /*
 REVISION HISTORY
 ================
+v0.10.5 - 2020-05-05
+  - Change ma_zero_pcm_frames() to take a 64-bit frame count.
+  - Add ma_copy_pcm_frames().
+  - Add MA_NO_GENERATION build option to exclude the `ma_waveform` and `ma_noise` APIs from the build.
+  - Add support for formatted logging to the VC6 build.
+  - Fix a crash in the linear resampler when LPF order is 0.
+  - Fix compilation errors and warnings with older versions of Visual Studio.
+  - Minor documentation updates.
+
 v0.10.4 - 2020-04-12
   - Fix a data conversion bug when converting from the client format to the native device format.
 
