@@ -21,6 +21,10 @@ func (d DeviceID) String() string {
 	return hex.EncodeToString(d[:displayLen])
 }
 
+func (d *DeviceID) Pointer() unsafe.Pointer {
+	return C.CBytes(d[:])
+}
+
 func (d *DeviceID) cptr() *C.ma_device_id {
 	return (*C.ma_device_id)(unsafe.Pointer(d))
 }

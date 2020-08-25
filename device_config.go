@@ -37,7 +37,7 @@ func (d *DeviceConfig) cptr() *C.ma_device_config {
 
 // SubConfig type.
 type SubConfig struct {
-	DeviceID   *DeviceID
+	DeviceID   unsafe.Pointer
 	Format     FormatType
 	Channels   uint32
 	ChannelMap [C.MA_MAX_CHANNELS]uint8
