@@ -1,12 +1,12 @@
 /*
 Audio playback and capture library. Choice of public domain or MIT-0. See license statements at the end of this file.
-miniaudio - v0.10.16 - 2020-08-14
+miniaudio - v0.10.18 - 2020-08-30
 
-David Reid - davidreidsoftware@gmail.com
+David Reid - mackron@gmail.com
 
 Website:       https://miniaud.io
 Documentation: https://miniaud.io/docs
-GitHub:        https://github.com/dr-soft/miniaudio
+GitHub:        https://github.com/mackron/miniaudio
 */
 
 /*
@@ -409,7 +409,7 @@ Vorbis is supported via stb_vorbis which can be enabled by including the header 
     #include "extras/stb_vorbis.c"
     ```
 
-A copy of stb_vorbis is included in the "extras" folder in the miniaudio repository (https://github.com/dr-soft/miniaudio).
+A copy of stb_vorbis is included in the "extras" folder in the miniaudio repository (https://github.com/mackron/miniaudio).
 
 Built-in decoders are amalgamated into the implementation section of miniaudio. You can disable the built-in decoders by specifying one or more of the
 following options before the miniaudio implementation:
@@ -606,9 +606,6 @@ To perform the conversion simply call `ma_channel_converter_process_pcm_frames()
     ```
 
 It is up to the caller to ensure the output buffer is large enough to accomodate the new PCM frames.
-
-The only formats supported are `ma_format_s16` and `ma_format_f32`. If you need another format you need to convert your data manually which you can do with
-`ma_pcm_convert()`, etc.
 
 Input and output PCM frames are always interleaved. Deinterleaved layouts are not supported.
 
@@ -1409,6 +1406,7 @@ Some backends have some nuance details you may want to be aware of.
 - The sndio backend is currently only enabled on OpenBSD builds.
 - The audio(4) backend is supported on OpenBSD, but you may need to disable sndiod before you can use it.
 - Note that GCC and Clang requires `-msse2`, `-mavx2`, etc. for SIMD optimizations.
+- When compiling with VC6 and earlier, decoding is restricted to files less than 2GB in size. This is due to 64-bit file APIs not being available.
 */
 
 #ifndef miniaudio_h
@@ -1423,7 +1421,7 @@ extern "C" {
 
 #define MA_VERSION_MAJOR    0
 #define MA_VERSION_MINOR    10
-#define MA_VERSION_REVISION 16
+#define MA_VERSION_REVISION 18
 #define MA_VERSION_STRING   MA_XSTRINGIFY(MA_VERSION_MAJOR) "." MA_XSTRINGIFY(MA_VERSION_MINOR) "." MA_XSTRINGIFY(MA_VERSION_REVISION)
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -2605,6 +2603,13 @@ Copies a channel map.
 Both input and output channel map buffers must have a capacity of at at least `channels`.
 */
 MA_API void ma_channel_map_copy(ma_channel* pOut, const ma_channel* pIn, ma_uint32 channels);
+
+/*
+Copies a channel map if one is specified, otherwise copies the default channel map.
+
+The output buffer must have a capacity of at least `channels`. If not NULL, the input channel map must also have a capacity of at least `channels`.
+*/
+MA_API void ma_channel_map_copy_or_default(ma_channel* pOut, const ma_channel* pIn, ma_uint32 channels);
 
 
 /*
@@ -5485,6 +5490,11 @@ MA_API ma_result ma_decoder_init_file_mp3_w(const wchar_t* pFilePath, const ma_d
 MA_API ma_result ma_decoder_init_file_vorbis_w(const wchar_t* pFilePath, const ma_decoder_config* pConfig, ma_decoder* pDecoder);
 
 MA_API ma_result ma_decoder_uninit(ma_decoder* pDecoder);
+
+/*
+Retrieves the current position of the read cursor in PCM frames.
+*/
+MA_API ma_result ma_decoder_get_cursor_in_pcm_frames(ma_decoder* pDecoder, ma_uint64* pCursor);
 
 /*
 Retrieves the length of the decoder in PCM frames.
@@ -10178,7 +10188,7 @@ static ma_result ma_device__handle_duplex_callback_capture(ma_device* pDevice, m
             break;
         }
 
-        result = ma_pcm_rb_commit_write(pRB, (ma_uint32)framesProcessedInDeviceFormat, pFramesInClientFormat);  /* Safe cast. */
+        result = ma_pcm_rb_commit_write(pRB, (ma_uint32)framesProcessedInClientFormat, pFramesInClientFormat);  /* Safe cast. */
         if (result != MA_SUCCESS) {
             ma_post_error(pDevice, MA_LOG_LEVEL_ERROR, "Failed to commit capture PCM frames to ring buffer.", result);
             break;
@@ -10407,7 +10417,7 @@ static ma_thread_result MA_THREADCALL ma_device_thread__null(void* pData)
             }
 
             /* Getting here means a suspend or kill operation has been requested. */
-            c89atomic_exchange_32(&pDevice->null_device.operationResult, MA_SUCCESS);
+            c89atomic_exchange_32((c89atomic_uint32*)&pDevice->null_device.operationResult, MA_SUCCESS);
             ma_event_signal(&pDevice->null_device.operationCompletionEvent);
             continue;
         }
@@ -10421,7 +10431,7 @@ static ma_thread_result MA_THREADCALL ma_device_thread__null(void* pData)
             ma_timer_init(&pDevice->null_device.timer);
 
             /* We're done. */
-            c89atomic_exchange_32(&pDevice->null_device.operationResult, MA_SUCCESS);
+            c89atomic_exchange_32((c89atomic_uint32*)&pDevice->null_device.operationResult, MA_SUCCESS);
             ma_event_signal(&pDevice->null_device.operationCompletionEvent);
             continue;
         }
@@ -10429,7 +10439,7 @@ static ma_thread_result MA_THREADCALL ma_device_thread__null(void* pData)
         /* Killing the device means we need to get out of this loop so that this thread can terminate. */
         if (pDevice->null_device.operation == MA_DEVICE_OP_KILL__NULL) {
             c89atomic_exchange_32(&pDevice->null_device.operation, MA_DEVICE_OP_NONE__NULL);
-            c89atomic_exchange_32(&pDevice->null_device.operationResult, MA_SUCCESS);
+            c89atomic_exchange_32((c89atomic_uint32*)&pDevice->null_device.operationResult, MA_SUCCESS);
             ma_event_signal(&pDevice->null_device.operationCompletionEvent);
             break;
         }
@@ -10437,7 +10447,7 @@ static ma_thread_result MA_THREADCALL ma_device_thread__null(void* pData)
         /* Getting a signal on a "none" operation probably means an error. Return invalid operation. */
         if (pDevice->null_device.operation == MA_DEVICE_OP_NONE__NULL) {
             MA_ASSERT(MA_FALSE);  /* <-- Trigger this in debug mode to ensure developers are aware they're doing something wrong (or there's a bug in a miniaudio). */
-            c89atomic_exchange_32(&pDevice->null_device.operationResult, (c89atomic_uint32)MA_INVALID_OPERATION);
+            c89atomic_exchange_32((c89atomic_uint32*)&pDevice->null_device.operationResult, (c89atomic_uint32)MA_INVALID_OPERATION);
             ma_event_signal(&pDevice->null_device.operationCompletionEvent);
             continue;   /* Continue the loop. Don't terminate. */
         }
@@ -37934,8 +37944,8 @@ MA_API ma_channel_converter_config ma_channel_converter_config_init(ma_format fo
     config.format      = format;
     config.channelsIn  = channelsIn;
     config.channelsOut = channelsOut;
-    ma_channel_map_copy(config.channelMapIn,  pChannelMapIn,  channelsIn);
-    ma_channel_map_copy(config.channelMapOut, pChannelMapOut, channelsOut);
+    ma_channel_map_copy_or_default(config.channelMapIn,  pChannelMapIn,  channelsIn);
+    ma_channel_map_copy_or_default(config.channelMapOut, pChannelMapOut, channelsOut);
     config.mixingMode  = mixingMode;
 
     return config;
@@ -38617,7 +38627,7 @@ static ma_result ma_channel_converter_process_pcm_frames__weights(ma_channel_con
                 for (iChannelIn = 0; iChannelIn < pConverter->channelsIn; ++iChannelIn) {
                     for (iChannelOut = 0; iChannelOut < pConverter->channelsOut; ++iChannelOut) {
                         ma_int64 s = pFramesOutS32[iFrame*pConverter->channelsOut + iChannelOut];
-                        s += (pFramesInS32[iFrame*pConverter->channelsIn + iChannelIn] * pConverter->weights.s16[iChannelIn][iChannelOut]) >> MA_CHANNEL_CONVERTER_FIXED_POINT_SHIFT;
+                        s += ((ma_int64)pFramesInS32[iFrame*pConverter->channelsIn + iChannelIn] * pConverter->weights.s16[iChannelIn][iChannelOut]) >> MA_CHANNEL_CONVERTER_FIXED_POINT_SHIFT;
 
                         pFramesOutS32[iFrame*pConverter->channelsOut + iChannelOut] = ma_clip_s32(s);
                     }
@@ -40227,6 +40237,19 @@ MA_API void ma_channel_map_copy(ma_channel* pOut, const ma_channel* pIn, ma_uint
     }
 }
 
+MA_API void ma_channel_map_copy_or_default(ma_channel* pOut, const ma_channel* pIn, ma_uint32 channels)
+{
+    if (pOut == NULL || channels == 0) {
+        return;
+    }
+
+    if (pIn != NULL) {
+        ma_channel_map_copy(pOut, pIn, channels);
+    } else {
+        ma_get_standard_channel_map(ma_standard_channel_map_default, channels, pOut);
+    }
+}
+
 MA_API ma_bool32 ma_channel_map_valid(ma_uint32 channels, const ma_channel* pChannelMap)
 {
     if (pChannelMap == NULL) {
@@ -41622,7 +41645,7 @@ MA_API ma_uint64 ma_audio_buffer_read_pcm_frames(ma_audio_buffer* pAudioBuffer, 
         MA_ASSERT(pAudioBuffer->cursor < pAudioBuffer->sizeInFrames);
     }
 
-    return frameCount;
+    return totalFramesRead;
 }
 
 MA_API ma_result ma_audio_buffer_seek_to_pcm_frame(ma_audio_buffer* pAudioBuffer, ma_uint64 frameIndex)
@@ -42101,9 +42124,6 @@ static ma_result ma_default_vfs_write__win32(ma_vfs* pVFS, ma_vfs_file file, con
     return result;
 }
 
-#if !defined(WINVER) || WINVER <= 0x0502
-WINBASEAPI BOOL WINAPI SetFilePointerEx(HANDLE hFile, LARGE_INTEGER liDistanceToMove, LARGE_INTEGER* pNewFilePointer, DWORD dwMoveMethod);
-#endif
 
 static ma_result ma_default_vfs_seek__win32(ma_vfs* pVFS, ma_vfs_file file, ma_int64 offset, ma_seek_origin origin)
 {
@@ -42123,7 +42143,16 @@ static ma_result ma_default_vfs_seek__win32(ma_vfs* pVFS, ma_vfs_file file, ma_i
         dwMoveMethod = FILE_BEGIN;
     }
 
+#if defined(_MSC_VER) && _MSC_VER <= 1200
+    /* No SetFilePointerEx() so restrict to 31 bits. */
+    if (origin > 0x7FFFFFFF) {
+        return MA_OUT_OF_RANGE;
+    }
+
+    result = SetFilePointer((HANDLE)file, (LONG)liDistanceToMove.QuadPart, NULL, dwMoveMethod);
+#else
     result = SetFilePointerEx((HANDLE)file, liDistanceToMove, NULL, dwMoveMethod);
+#endif
     if (result == 0) {
         return ma_result_from_GetLastError(GetLastError());
     }
@@ -42136,12 +42165,20 @@ static ma_result ma_default_vfs_tell__win32(ma_vfs* pVFS, ma_vfs_file file, ma_i
     LARGE_INTEGER liZero;
     LARGE_INTEGER liTell;
     BOOL result;
+#if defined(_MSC_VER) && _MSC_VER <= 1200
+    LONG tell;
+#endif
 
     (void)pVFS;
 
     liZero.QuadPart = 0;
 
+#if defined(_MSC_VER) && _MSC_VER <= 1200
+    result = SetFilePointer((HANDLE)file, (LONG)liZero.QuadPart, &tell, FILE_CURRENT);
+    liTell.QuadPart = tell;
+#else
     result = SetFilePointerEx((HANDLE)file, liZero, &liTell, FILE_CURRENT);
+#endif
     if (result == 0) {
         return ma_result_from_GetLastError(GetLastError());
     }
@@ -42531,7 +42568,7 @@ MA_API ma_result ma_default_vfs_init(ma_default_vfs* pVFS, const ma_allocation_c
 Decoding and Encoding Headers. These are auto-generated from a tool.
 
 **************************************************************************************************************************************************************/
-#if !defined(MA_NO_WAV) && !defined(MA_NO_DECODING) && !defined(MA_NO_ENCODING)
+#if !defined(MA_NO_WAV) && (!defined(MA_NO_DECODING) || !defined(MA_NO_ENCODING))
 /* dr_wav_h begin */
 #ifndef dr_wav_h
 #define dr_wav_h
@@ -42542,7 +42579,7 @@ extern "C" {
 #define DRWAV_XSTRINGIFY(x)     DRWAV_STRINGIFY(x)
 #define DRWAV_VERSION_MAJOR     0
 #define DRWAV_VERSION_MINOR     12
-#define DRWAV_VERSION_REVISION  9
+#define DRWAV_VERSION_REVISION  10
 #define DRWAV_VERSION_STRING    DRWAV_XSTRINGIFY(DRWAV_VERSION_MAJOR) "." DRWAV_XSTRINGIFY(DRWAV_VERSION_MINOR) "." DRWAV_XSTRINGIFY(DRWAV_VERSION_REVISION)
 #include <stddef.h>
 typedef   signed char           drwav_int8;
@@ -42914,7 +42951,7 @@ extern "C" {
 #define DRFLAC_XSTRINGIFY(x)     DRFLAC_STRINGIFY(x)
 #define DRFLAC_VERSION_MAJOR     0
 #define DRFLAC_VERSION_MINOR     12
-#define DRFLAC_VERSION_REVISION  18
+#define DRFLAC_VERSION_REVISION  19
 #define DRFLAC_VERSION_STRING    DRFLAC_XSTRINGIFY(DRFLAC_VERSION_MAJOR) "." DRFLAC_XSTRINGIFY(DRFLAC_VERSION_MINOR) "." DRFLAC_XSTRINGIFY(DRFLAC_VERSION_REVISION)
 #include <stddef.h>
 typedef   signed char           drflac_int8;
@@ -43885,13 +43922,20 @@ static ma_result ma_decoder_init_flac__internal(const ma_decoder_config* pConfig
 
     /*
     dr_flac supports reading as s32, s16 and f32. Try to do a one-to-one mapping if possible, but fall back to s32 if not. s32 is the "native" FLAC format
-    since it's the only one that's truly lossless.
+    since it's the only one that's truly lossless. If the internal bits per sample is <= 16 we will decode to ma_format_s16 to keep it more efficient.
     */
-    pDecoder->internalFormat = ma_format_s32;
-    if (pConfig->format == ma_format_s16) {
-        pDecoder->internalFormat = ma_format_s16;
-    } else if (pConfig->format == ma_format_f32) {
-        pDecoder->internalFormat = ma_format_f32;
+    if (pConfig->format == ma_format_unknown) {
+        if (pFlac->bitsPerSample <= 16) {
+            pDecoder->internalFormat = ma_format_s16;
+        } else {
+            pDecoder->internalFormat = ma_format_s32;
+        }
+    } else {
+        if (pConfig->format == ma_format_s16 || pConfig->format == ma_format_f32) {
+            pDecoder->internalFormat = pConfig->format;
+        } else {
+            pDecoder->internalFormat = ma_format_s32;   /* s32 as the baseline to ensure no loss of precision for 24-bit encoded files. */
+        }
     }
 
     pDecoder->internalChannels = pFlac->channels;
@@ -44499,13 +44543,11 @@ static ma_result ma_decoder__data_source_on_get_data_format(ma_data_source* pDat
     return MA_SUCCESS;
 }
 
-static ma_result ma_decoder__data_source_on_get_cursor(ma_data_source* pDataSource, ma_uint64* pCursor)
+static ma_result ma_decoder__data_source_on_get_cursor(ma_data_source* pDataSource, ma_uint64* pLength)
 {
     ma_decoder* pDecoder = (ma_decoder*)pDataSource;
 
-    *pCursor = pDecoder->readPointerInPCMFrames;
-
-    return MA_SUCCESS;
+    return ma_decoder_get_cursor_in_pcm_frames(pDecoder, pLength);
 }
 
 static ma_result ma_decoder__data_source_on_get_length(ma_data_source* pDataSource, ma_uint64* pLength)
@@ -45699,6 +45741,23 @@ MA_API ma_result ma_decoder_uninit(ma_decoder* pDecoder)
     }
 
     ma_data_converter_uninit(&pDecoder->converter);
+
+    return MA_SUCCESS;
+}
+
+MA_API ma_result ma_decoder_get_cursor_in_pcm_frames(ma_decoder* pDecoder, ma_uint64* pCursor)
+{
+    if (pCursor == NULL) {
+        return MA_INVALID_ARGS;
+    }
+
+    *pCursor = 0;
+
+    if (pDecoder == NULL) {
+        return MA_INVALID_ARGS;
+    }
+
+    *pCursor = pDecoder->readPointerInPCMFrames;
 
     return MA_SUCCESS;
 }
@@ -47051,7 +47110,7 @@ code below please report the bug to the respective repository for the relevant p
 
 ***************************************************************************************************************************************************************
 **************************************************************************************************************************************************************/
-#if !defined(MA_NO_WAV) && !defined(MA_NO_DECODING) && !defined(MA_NO_ENCODING)
+#if !defined(MA_NO_WAV) && (!defined(MA_NO_DECODING) || !defined(MA_NO_ENCODING))
 #if !defined(DR_WAV_IMPLEMENTATION) && !defined(DRWAV_IMPLEMENTATION) /* For backwards compatibility. Will be removed in version 0.11 for cleanliness. */
 /* dr_wav_c begin */
 #ifndef dr_wav_c
@@ -49087,6 +49146,13 @@ DRWAV_API drwav_bool32 drwav_seek_to_first_pcm_frame(drwav* pWav)
     }
     if (drwav__is_compressed_format_tag(pWav->translatedFormatTag)) {
         pWav->compressed.iCurrentPCMFrame = 0;
+        if (pWav->translatedFormatTag == DR_WAVE_FORMAT_ADPCM) {
+            DRWAV_ZERO_OBJECT(&pWav->msadpcm);
+        } else if (pWav->translatedFormatTag == DR_WAVE_FORMAT_DVI_ADPCM) {
+            DRWAV_ZERO_OBJECT(&pWav->ima);
+        } else {
+            DRWAV_ASSERT(DRWAV_FALSE);
+        }
     }
     pWav->bytesRemaining = pWav->dataChunkDataSize;
     return DRWAV_TRUE;
@@ -51625,7 +51691,6 @@ static DRFLAC_INLINE drflac_bool32 drflac__read_uint32(drflac_bs* bs, unsigned i
 static drflac_bool32 drflac__read_int32(drflac_bs* bs, unsigned int bitCount, drflac_int32* pResult)
 {
     drflac_uint32 result;
-    drflac_uint32 signbit;
     DRFLAC_ASSERT(bs != NULL);
     DRFLAC_ASSERT(pResult != NULL);
     DRFLAC_ASSERT(bitCount > 0);
@@ -51633,8 +51698,11 @@ static drflac_bool32 drflac__read_int32(drflac_bs* bs, unsigned int bitCount, dr
     if (!drflac__read_uint32(bs, bitCount, &result)) {
         return DRFLAC_FALSE;
     }
-    signbit = ((result >> (bitCount-1)) & 0x01);
-    result |= (~signbit + 1) << bitCount;
+    if (bitCount < 32) {
+        drflac_uint32 signbit;
+        signbit = ((result >> (bitCount-1)) & 0x01);
+        result |= (~signbit + 1) << bitCount;
+    }
     *pResult = (drflac_int32)result;
     return DRFLAC_TRUE;
 }
@@ -62461,6 +62529,23 @@ The following miscellaneous changes have also been made.
 /*
 REVISION HISTORY
 ================
+v0.10.18 - 2020-08-30
+  - Fix build errors with VC6.
+  - Fix a bug in channel converter for s32 format.
+  - Change channel converter configs to use the default channel map instead of a blank channel map when no channel map is specified when initializing the
+    config. This fixes an issue where the optimized mono expansion path would never get used.
+  - Use a more appropriate default format for FLAC decoders. This will now use ma_format_s16 when the FLAC is encoded as 16-bit.
+  - Update FLAC decoder.
+  - Update links to point to the new repository location (https://github.com/mackron/miniaudio).
+
+v0.10.17 - 2020-08-28
+  - Fix an error where the WAV codec is incorrectly excluded from the build depending on which compile time options are set.
+  - Fix a bug in ma_audio_buffer_read_pcm_frames() where it isn't returning the correct number of frames processed.
+  - Fix compilation error on Android.
+  - Core Audio: Fix a bug with full-duplex mode.
+  - Add ma_decoder_get_cursor_in_pcm_frames().
+  - Update WAV codec.
+
 v0.10.16 - 2020-08-14
   - WASAPI: Fix a potential crash due to using an uninitialized variable.
   - OpenSL: Enable runtime linking.
