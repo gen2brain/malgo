@@ -1,6 +1,6 @@
 /*
 Audio playback and capture library. Choice of public domain or MIT-0. See license statements at the end of this file.
-miniaudio - v0.10.18 - 2020-08-30
+miniaudio - v0.10.19 - 2020-09-22
 
 David Reid - mackron@gmail.com
 
@@ -1421,7 +1421,7 @@ extern "C" {
 
 #define MA_VERSION_MAJOR    0
 #define MA_VERSION_MINOR    10
-#define MA_VERSION_REVISION 18
+#define MA_VERSION_REVISION 19
 #define MA_VERSION_STRING   MA_XSTRINGIFY(MA_VERSION_MAJOR) "." MA_XSTRINGIFY(MA_VERSION_MINOR) "." MA_XSTRINGIFY(MA_VERSION_REVISION)
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -2026,6 +2026,7 @@ typedef struct
 {
     ma_format format;
     ma_uint32 channels;
+    ma_uint32 sampleRate;
     ma_uint32 lpf1Count;
     ma_uint32 lpf2Count;
     ma_lpf1 lpf1[1];
@@ -2094,6 +2095,7 @@ typedef struct
 {
     ma_format format;
     ma_uint32 channels;
+    ma_uint32 sampleRate;
     ma_uint32 hpf1Count;
     ma_uint32 hpf2Count;
     ma_hpf1 hpf1[1];
@@ -12860,6 +12862,22 @@ static ma_result ma_device_init_internal__wasapi(ma_context* pContext, ma_device
     }
 
     pData->formatOut = ma_format_from_WAVEFORMATEX((WAVEFORMATEX*)&wf);
+    if (pData->formatOut == ma_format_unknown) {
+        /*
+        The format isn't supported. This is almost certainly because the exclusive mode format isn't supported by miniaudio. We need to return MA_SHARE_MODE_NOT_SUPPORTED
+        in this case so that the caller can detect it and fall back to shared mode if desired. We should never get here if shared mode was requested, but just for
+        completeness we'll check for it and return MA_FORMAT_NOT_SUPPORTED.
+        */
+        if (shareMode == ma_share_mode_exclusive) {
+            result = MA_SHARE_MODE_NOT_SUPPORTED;
+        } else {
+            result = MA_FORMAT_NOT_SUPPORTED;
+        }
+        
+        errorMsg = "[WASAPI] Native format not supported.";
+        goto done;
+    }
+
     pData->channelsOut = wf.Format.nChannels;
     pData->sampleRateOut = wf.Format.nSamplesPerSec;
 
@@ -20059,7 +20077,7 @@ static ma_result ma_result_from_pulse(int result)
         case MA_PA_ERR_ACCESS:   return MA_ACCESS_DENIED;
         case MA_PA_ERR_INVALID:  return MA_INVALID_ARGS;
         case MA_PA_ERR_NOENTITY: return MA_NO_DEVICE;
-        default:                  return MA_ERROR;
+        default:                 return MA_ERROR;
     }
 }
 
@@ -35203,10 +35221,11 @@ static ma_result ma_lpf_reinit__internal(const ma_lpf_config* pConfig, ma_lpf* p
         }
     }
 
-    pLPF->lpf1Count = lpf1Count;
-    pLPF->lpf2Count = lpf2Count;
-    pLPF->format    = pConfig->format;
-    pLPF->channels  = pConfig->channels;
+    pLPF->lpf1Count  = lpf1Count;
+    pLPF->lpf2Count  = lpf2Count;
+    pLPF->format     = pConfig->format;
+    pLPF->channels   = pConfig->channels;
+    pLPF->sampleRate = pConfig->sampleRate;
 
     return MA_SUCCESS;
 }
@@ -35709,10 +35728,11 @@ static ma_result ma_hpf_reinit__internal(const ma_hpf_config* pConfig, ma_hpf* p
         }
     }
 
-    pHPF->hpf1Count = hpf1Count;
-    pHPF->hpf2Count = hpf2Count;
-    pHPF->format    = pConfig->format;
-    pHPF->channels  = pConfig->channels;
+    pHPF->hpf1Count  = hpf1Count;
+    pHPF->hpf2Count  = hpf2Count;
+    pHPF->format     = pConfig->format;
+    pHPF->channels   = pConfig->channels;
+    pHPF->sampleRate = pConfig->sampleRate;
 
     return MA_SUCCESS;
 }
@@ -45883,6 +45903,8 @@ MA_API ma_result ma_decoder_seek_to_pcm_frame(ma_decoder* pDecoder, ma_uint64 fr
         if (result == MA_SUCCESS) {
             pDecoder->readPointerInPCMFrames = frameIndex;
         }
+
+        return result;
     }
 
     /* Should never get here, but if we do it means onSeekToPCMFrame was not set by the backend. */
@@ -62529,6 +62551,11 @@ The following miscellaneous changes have also been made.
 /*
 REVISION HISTORY
 ================
+v0.10.19 - 2020-09-22
+  - WASAPI: Return an error when exclusive mode is requested, but the native format is not supported by miniaudio.
+  - Fix a bug where ma_decoder_seek_to_pcm_frames() never returns MA_SUCCESS even though it was successful.
+  - Store the sample rate in the `ma_lpf` and `ma_hpf` structures.
+
 v0.10.18 - 2020-08-30
   - Fix build errors with VC6.
   - Fix a bug in channel converter for s32 format.
