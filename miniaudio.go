@@ -3,13 +3,13 @@ package malgo
 
 /*
 #cgo CFLAGS: -std=gnu99
-#cgo ma_debug CFLAGS: -DMAL_DEBUG_OUTPUT=1
+#cgo ma_debug CFLAGS: -DMA_DEBUG_OUTPUT=1
 
-#cgo linux LDFLAGS: -ldl -lpthread -lm
+#cgo linux,!android LDFLAGS: -ldl -lpthread -lm
 #cgo openbsd LDFLAGS: -ldl -lpthread -lm
 #cgo netbsd LDFLAGS: -ldl -lpthread -lm
 #cgo freebsd LDFLAGS: -ldl -lpthread -lm
-#cgo android LDFLAGS: -lOpenSLES
+#cgo android LDFLAGS: -lm
 
 #cgo !noasm,!arm,!arm64 CFLAGS: -msse2
 #cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
