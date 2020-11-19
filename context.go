@@ -115,6 +115,19 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	return info, nil
 }
 
+// DeviceInfo retrieves information about a device of the given type, with the specified ID and share mode.
+func (ctx Context) DeviceInfo(kind DeviceType, id DeviceID, mode ShareMode) (DeviceInfo, error) {
+	var info C.ma_device_info
+
+	result := C.ma_context_get_device_info(ctx.cptr(), C.ma_device_type(kind), id.cptr(), C.ma_share_mode(mode), &info)
+	err := errorFromResult(Result(result))
+	if err != nil {
+		return DeviceInfo{}, err
+	}
+
+	return deviceInfoFromPointer(unsafe.Pointer(&info)), nil
+}
+
 var contextMutex sync.Mutex
 var logProcMap = make(map[*C.ma_context]LogProc)
 

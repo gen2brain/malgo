@@ -31,9 +31,9 @@ func (d *DeviceID) cptr() *C.ma_device_id {
 
 // DeviceInfo type.
 type DeviceInfo struct {
-	ID   DeviceID
-	name [256]byte
-
+	ID            DeviceID
+	name          [256]byte
+	IsDefault     uint32
 	FormatCount   uint32
 	Formats       [6]uint32
 	MinChannels   uint32
@@ -41,11 +41,9 @@ type DeviceInfo struct {
 	MinSampleRate uint32
 	MaxSampleRate uint32
 
-	_private privateDeviceInfo
-}
-
-type privateDeviceInfo struct {
-	isDefault uint32
+	_ uint32
+	_ [64]byte
+	_ [4]byte
 }
 
 // Name returns the name of the device.

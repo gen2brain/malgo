@@ -27,7 +27,13 @@ func main() {
 
 	fmt.Println("Playback Devices")
 	for i, info := range infos {
-		fmt.Printf("    %d: %v, %s\n", i, info.ID, info.Name())
+		e := "ok"
+		full, err := context.DeviceInfo(malgo.Playback, info.ID, malgo.Shared)
+		if err != nil {
+			e = err.Error()
+		}
+		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
+			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
 	}
 
 	fmt.Println()
@@ -41,6 +47,12 @@ func main() {
 
 	fmt.Println("Capture Devices")
 	for i, info := range infos {
-		fmt.Printf("    %d: %v, %s\n", i, info.ID, info.Name())
+		e := "ok"
+		full, err := context.DeviceInfo(malgo.Capture, info.ID, malgo.Shared)
+		if err != nil {
+			e = err.Error()
+		}
+		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
+			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
 	}
 }
