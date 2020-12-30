@@ -1,6 +1,6 @@
 /*
 Audio playback and capture library. Choice of public domain or MIT-0. See license statements at the end of this file.
-miniaudio - v0.10.27 - 2020-12-04
+miniaudio - v0.10.29 - 2020-12-26
 
 David Reid - mackron@gmail.com
 
@@ -268,6 +268,9 @@ The BSD build only requires linking to `-lpthread` and `-lm`. NetBSD uses audio(
 AAudio is the highest priority backend on Android. This should work out of the box without needing any kind of compiler configuration. Support for AAudio
 starts with Android 8 which means older versions will fall back to OpenSL|ES which requires API level 16+.
 
+There have been reports that the OpenSL|ES backend fails to initialize on some Android based devices due to `dlopen()` failing to open "libOpenSLES.so". If
+this happens on your platform you'll need to disable run-time linking with `MA_NO_RUNTIME_LINKING` and link with -lOpenSLES.
+
 2.6. Emscripten
 ---------------
 The Emscripten build emits Web Audio JavaScript directly and should compile cleanly out of the box. You cannot use -std=c* compiler flags, nor -ansi.
@@ -342,6 +345,8 @@ The Emscripten build emits Web Audio JavaScript directly and should compile clea
     | MA_NO_RUNTIME_LINKING | Disables runtime linking. This is useful for passing Apple's notarization process. When enabling this, you may need to avoid    |
     |                       | using `-std=c89` or `-std=c99` on Linux builds or else you may end up with compilation errors due to conflicts with `timespec`  |
     |                       | and `timeval` data types.                                                                                                       |
+    |                       |                                                                                                                                 |
+    |                       | You may need to enable this if your target platform does not allow runtime linking via `dlopen()`.                              |
     +-----------------------+---------------------------------------------------------------------------------------------------------------------------------+
     | MA_LOG_LEVEL [level]  | Sets the logging level. Set `level` to one of the following:                                                                    |
     |                       |                                                                                                                                 |
@@ -1451,7 +1456,7 @@ extern "C" {
 
 #define MA_VERSION_MAJOR    0
 #define MA_VERSION_MINOR    10
-#define MA_VERSION_REVISION 27
+#define MA_VERSION_REVISION 29
 #define MA_VERSION_STRING   MA_XSTRINGIFY(MA_VERSION_MAJOR) "." MA_XSTRINGIFY(MA_VERSION_MINOR) "." MA_XSTRINGIFY(MA_VERSION_REVISION)
 
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -4001,12 +4006,12 @@ struct ma_device
             ma_uint32 originalPeriodSizeInMilliseconds;
             ma_uint32 originalPeriods;
             ma_performance_profile originalPerformanceProfile;
-            ma_bool32 hasDefaultPlaybackDeviceChanged;          /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
-            ma_bool32 hasDefaultCaptureDeviceChanged;           /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
+            volatile ma_bool32 hasDefaultPlaybackDeviceChanged; /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
+            volatile ma_bool32 hasDefaultCaptureDeviceChanged;  /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
             ma_uint32 periodSizeInFramesPlayback;
             ma_uint32 periodSizeInFramesCapture;
-            ma_bool32 isStartedCapture;                         /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
-            ma_bool32 isStartedPlayback;                        /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
+            volatile ma_bool32 isStartedCapture;                /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
+            volatile ma_bool32 isStartedPlayback;               /* <-- Make sure this is always a whole 32-bits because we use atomic assignments. */
             ma_bool8 noAutoConvertSRC;                          /* When set to true, disables the use of AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM. */
             ma_bool8 noDefaultQualitySRC;                       /* When set to true, disables the use of AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY. */
             ma_bool8 noHardwareOffloading;
@@ -4157,14 +4162,14 @@ struct ma_device
             ma_event operationCompletionEvent;
             ma_semaphore operationSemaphore;
             ma_uint32 operation;
-            ma_result operationResult;
+            volatile ma_result operationResult;
             ma_timer timer;
             double priorRunTime;
             ma_uint32 currentPeriodFramesRemainingPlayback;
             ma_uint32 currentPeriodFramesRemainingCapture;
             ma_uint64 lastProcessedFramePlayback;
             ma_uint64 lastProcessedFrameCapture;
-            ma_bool32 isStarted;
+            volatile ma_bool32 isStarted;
         } null_device;
 #endif
     };
@@ -9563,6 +9568,21 @@ static C89ATOMIC_INLINE double c89atomic_exchange_explicit_f64(volatile double* 
 #define c89atomic_load_f64(ptr)                                         c89atomic_load_explicit_f64(ptr, c89atomic_memory_order_seq_cst)
 #define c89atomic_exchange_f32(dst, src)                                c89atomic_exchange_explicit_f32(dst, src, c89atomic_memory_order_seq_cst)
 #define c89atomic_exchange_f64(dst, src)                                c89atomic_exchange_explicit_f64(dst, src, c89atomic_memory_order_seq_cst)
+typedef c89atomic_flag c89atomic_spinlock;
+static C89ATOMIC_INLINE void c89atomic_spinlock_lock(volatile c89atomic_spinlock* pSpinlock)
+{
+    for (;;) {
+        if (c89atomic_flag_test_and_set_explicit(pSpinlock, c89atomic_memory_order_acquire) == 0) {
+            break;
+        }
+        while (c89atomic_load_explicit_8(pSpinlock, c89atomic_memory_order_relaxed) == 1) {
+        }
+    }
+}
+static C89ATOMIC_INLINE void c89atomic_spinlock_unlock(volatile c89atomic_spinlock* pSpinlock)
+{
+    c89atomic_flag_clear_explicit(pSpinlock, c89atomic_memory_order_release);
+}
 #if defined(__cplusplus)
 }
 #endif
@@ -10003,8 +10023,6 @@ static ma_result ma_thread_create__posix(ma_thread* pThread, ma_thread_priority 
                 }
             }
         }
-
-        pthread_attr_destroy(&attr);
     }
 #else
     /* It's the emscripten build. We'll have a few unused parameters. */
@@ -10013,6 +10031,12 @@ static ma_result ma_thread_create__posix(ma_thread* pThread, ma_thread_priority 
 #endif
 
     result = pthread_create(pThread, pAttr, entryProc, pData);
+
+    /* The thread attributes object is no longer required. */
+    if (pAttr != NULL) {
+        pthread_attr_destroy(pAttr);
+    }
+
     if (result != 0) {
         return ma_result_from_errno(result);
     }
@@ -10468,7 +10492,7 @@ not officially supporting this, but I'm leaving it here in case it's useful for 
 
 /* Disable run-time linking on certain backends. */
 #ifndef MA_NO_RUNTIME_LINKING
-    #if defined(MA_ANDROID) || defined(MA_EMSCRIPTEN)
+    #if defined(MA_EMSCRIPTEN)
         #define MA_NO_RUNTIME_LINKING
     #endif
 #endif
@@ -12152,7 +12176,7 @@ static ma_result ma_device_write__null(ma_device* pDevice, const void* pPCMFrame
         *pFramesWritten = 0;
     }
 
-    wasStartedOnEntry = pDevice->null_device.isStarted;
+    wasStartedOnEntry = c89atomic_load_32(&pDevice->null_device.isStarted);
 
     /* Keep going until everything has been read. */
     totalPCMFramesProcessed = 0;
@@ -12178,7 +12202,7 @@ static ma_result ma_device_write__null(ma_device* pDevice, const void* pPCMFrame
         if (pDevice->null_device.currentPeriodFramesRemainingPlayback == 0) {
             pDevice->null_device.currentPeriodFramesRemainingPlayback = 0;
 
-            if (!pDevice->null_device.isStarted && !wasStartedOnEntry) {
+            if (!c89atomic_load_32(&pDevice->null_device.isStarted) && !wasStartedOnEntry) {
                 result = ma_device_start__null(pDevice);
                 if (result != MA_SUCCESS) {
                     break;
@@ -12198,7 +12222,7 @@ static ma_result ma_device_write__null(ma_device* pDevice, const void* pPCMFrame
             ma_uint64 currentFrame;
 
             /* Stop waiting if the device has been stopped. */
-            if (!pDevice->null_device.isStarted) {
+            if (!c89atomic_load_32(&pDevice->null_device.isStarted)) {
                 break;
             }
 
@@ -12269,7 +12293,7 @@ static ma_result ma_device_read__null(ma_device* pDevice, void* pPCMFrames, ma_u
             ma_uint64 currentFrame;
 
             /* Stop waiting if the device has been stopped. */
-            if (!pDevice->null_device.isStarted) {
+            if (!c89atomic_load_32(&pDevice->null_device.isStarted)) {
                 break;
             }
 
@@ -13129,7 +13153,7 @@ typedef struct
 struct ma_completion_handler_uwp
 {
     ma_completion_handler_uwp_vtbl* lpVtbl;
-    ma_uint32 counter;
+    volatile ma_uint32 counter;
     HANDLE hEvent;
 };
 
@@ -13343,7 +13367,7 @@ static HRESULT STDMETHODCALLTYPE ma_IMMNotificationClient_OnDefaultDeviceChanged
         c89atomic_exchange_32(&pThis->pDevice->wasapi.hasDefaultPlaybackDeviceChanged, MA_TRUE);
     }
     if (dataFlow == ma_eCapture || pThis->pDevice->type == ma_device_type_loopback) {
-        c89atomic_exchange_32(&pThis->pDevice->wasapi.hasDefaultCaptureDeviceChanged,  MA_TRUE);
+        c89atomic_exchange_32(&pThis->pDevice->wasapi.hasDefaultCaptureDeviceChanged, MA_TRUE);
     }
 
     (void)pDefaultDeviceID;
@@ -14526,7 +14550,7 @@ static ma_result ma_device_reinit__wasapi(ma_device* pDevice, ma_device_type dev
         ma_IAudioClient_GetBufferSize((ma_IAudioClient*)pDevice->wasapi.pAudioClientCapture, &pDevice->wasapi.actualPeriodSizeInFramesCapture);
 
         /* The device may be in a started state. If so we need to immediately restart it. */
-        if (pDevice->wasapi.isStartedCapture) {
+        if (c89atomic_load_32(&pDevice->wasapi.isStartedCapture)) {
             HRESULT hr = ma_IAudioClient_Start((ma_IAudioClient*)pDevice->wasapi.pAudioClientCapture);
             if (FAILED(hr)) {
                 return ma_post_error(pDevice, MA_LOG_LEVEL_ERROR, "[WASAPI] Failed to start internal capture device after reinitialization.", ma_result_from_HRESULT(hr));
@@ -14562,7 +14586,7 @@ static ma_result ma_device_reinit__wasapi(ma_device* pDevice, ma_device_type dev
         ma_IAudioClient_GetBufferSize((ma_IAudioClient*)pDevice->wasapi.pAudioClientPlayback, &pDevice->wasapi.actualPeriodSizeInFramesPlayback);
 
         /* The device may be in a started state. If so we need to immediately restart it. */
-        if (pDevice->wasapi.isStartedPlayback) {
+        if (c89atomic_load_32(&pDevice->wasapi.isStartedPlayback)) {
             HRESULT hr = ma_IAudioClient_Start((ma_IAudioClient*)pDevice->wasapi.pAudioClientPlayback);
             if (FAILED(hr)) {
                 return ma_post_error(pDevice, MA_LOG_LEVEL_ERROR, "[WASAPI] Failed to start internal playback device after reinitialization.", ma_result_from_HRESULT(hr));
@@ -14825,11 +14849,11 @@ static ma_bool32 ma_device_is_reroute_required__wasapi(ma_device* pDevice, ma_de
     MA_ASSERT(pDevice != NULL);
 
     if (deviceType == ma_device_type_playback) {
-        return pDevice->wasapi.hasDefaultPlaybackDeviceChanged;
+        return c89atomic_load_32(&pDevice->wasapi.hasDefaultPlaybackDeviceChanged);
     }
 
     if (deviceType == ma_device_type_capture || deviceType == ma_device_type_loopback) {
-        return pDevice->wasapi.hasDefaultCaptureDeviceChanged;
+        return c89atomic_load_32(&pDevice->wasapi.hasDefaultCaptureDeviceChanged);
     }
 
     return MA_FALSE;
@@ -15234,7 +15258,7 @@ static ma_result ma_device_audio_thread__wasapi(ma_device* pDevice)
                     mappedDeviceBufferSizeInFramesPlayback    = 0;
                 }
 
-                if (!pDevice->wasapi.isStartedPlayback) {
+                if (!c89atomic_load_32(&pDevice->wasapi.isStartedPlayback)) {
                     ma_uint32 startThreshold = pDevice->playback.internalPeriodSizeInFrames * 1;
 
                     /* Prevent a deadlock. If we don't clamp against the actual buffer size we'll never end up starting the playback device which will result in a deadlock. */
@@ -15400,7 +15424,7 @@ static ma_result ma_device_audio_thread__wasapi(ma_device* pDevice)
                 }
 
                 framesWrittenToPlaybackDevice += framesAvailablePlayback;
-                if (!pDevice->wasapi.isStartedPlayback) {
+                if (!c89atomic_load_32(&pDevice->wasapi.isStartedPlayback)) {
                     if (pDevice->playback.shareMode == ma_share_mode_exclusive || framesWrittenToPlaybackDevice >= pDevice->playback.internalPeriodSizeInFrames*1) {
                         hr = ma_IAudioClient_Start((ma_IAudioClient*)pDevice->wasapi.pAudioClientPlayback);
                         if (FAILED(hr)) {
@@ -15448,7 +15472,7 @@ static ma_result ma_device_audio_thread__wasapi(ma_device* pDevice)
         The buffer needs to be drained before stopping the device. Not doing this will result in the last few frames not getting output to
         the speakers. This is a problem for very short sounds because it'll result in a significant portion of it not getting played.
         */
-        if (pDevice->wasapi.isStartedPlayback) {
+        if (c89atomic_load_32(&pDevice->wasapi.isStartedPlayback)) {
             /* We need to make sure we put a timeout here or else we'll risk getting stuck in a deadlock in some cases. */
             DWORD waitTime = pDevice->wasapi.actualPeriodSizeInFramesPlayback / pDevice->playback.internalSampleRate;
 
@@ -25759,11 +25783,11 @@ static ma_result ma_device__untrack__coreaudio(ma_device* pDevice)
     m_pDevice->sampleRate = (ma_uint32)pSession.sampleRate;
 
     if (m_pDevice->type == ma_device_type_capture || m_pDevice->type == ma_device_type_duplex) {
-        m_pDevice->capture.channels = (ma_uint32)pSession.inputNumberOfChannels;
+        m_pDevice->capture.internalChannels = (ma_uint32)pSession.inputNumberOfChannels;
         ma_device__post_init_setup(m_pDevice, ma_device_type_capture);
     }
     if (m_pDevice->type == ma_device_type_playback || m_pDevice->type == ma_device_type_duplex) {
-        m_pDevice->playback.channels = (ma_uint32)pSession.outputNumberOfChannels;
+        m_pDevice->playback.internalChannels = (ma_uint32)pSession.outputNumberOfChannels;
         ma_device__post_init_setup(m_pDevice, ma_device_type_playback);
     }
 }
@@ -25846,12 +25870,12 @@ static ma_result ma_device_init_internal__coreaudio(ma_context* pContext, ma_dev
     OSStatus status;
     UInt32 enableIOFlag;
     AudioStreamBasicDescription bestFormat;
-    ma_uint32 actualPeriodSizeInFrames;
+    UInt32 actualPeriodSizeInFrames;
     AURenderCallbackStruct callbackInfo;
 #if defined(MA_APPLE_DESKTOP)
     AudioObjectID deviceObjectID;
 #else
-    ma_uint32 actualPeriodSizeInFramesSize = sizeof(actualPeriodSizeInFrames);
+    UInt32 actualPeriodSizeInFramesSize = sizeof(actualPeriodSizeInFrames);
 #endif
 
     /* This API should only be used for a single device type: playback or capture. No full-duplex mode. */
@@ -26153,7 +26177,7 @@ static ma_result ma_device_init_internal__coreaudio(ma_context* pContext, ma_dev
         return ma_result_from_OSStatus(status);
     }
 
-    pData->periodSizeInFramesOut = actualPeriodSizeInFrames;
+    pData->periodSizeInFramesOut = (ma_uint32)actualPeriodSizeInFrames;
 
     /* We need a buffer list if this is an input device. We render into this in the input callback. */
     if (deviceType == ma_device_type_capture) {
@@ -29468,20 +29492,23 @@ AAudio Backend
 
 ******************************************************************************/
 #ifdef MA_HAS_AAUDIO
+
 /*#include <AAudio/AAudio.h>*/
 
-#define MA_AAUDIO_UNSPECIFIED 0
+typedef int32_t                                         ma_aaudio_result_t;
+typedef int32_t                                         ma_aaudio_direction_t;
+typedef int32_t                                         ma_aaudio_sharing_mode_t;
+typedef int32_t                                         ma_aaudio_format_t;
+typedef int32_t                                         ma_aaudio_stream_state_t;
+typedef int32_t                                         ma_aaudio_performance_mode_t;
+typedef int32_t                                         ma_aaudio_usage_t;
+typedef int32_t                                         ma_aaudio_content_type_t;
+typedef int32_t                                         ma_aaudio_input_preset_t;
+typedef int32_t                                         ma_aaudio_data_callback_result_t;
+typedef struct ma_AAudioStreamBuilder_t*                ma_AAudioStreamBuilder;
+typedef struct ma_AAudioStream_t*                       ma_AAudioStream;
 
-typedef int32_t ma_aaudio_result_t;
-typedef int32_t ma_aaudio_direction_t;
-typedef int32_t ma_aaudio_sharing_mode_t;
-typedef int32_t ma_aaudio_format_t;
-typedef int32_t ma_aaudio_stream_state_t;
-typedef int32_t ma_aaudio_performance_mode_t;
-typedef int32_t ma_aaudio_usage_t;
-typedef int32_t ma_aaudio_content_type_t;
-typedef int32_t ma_aaudio_input_preset_t;
-typedef int32_t ma_aaudio_data_callback_result_t;
+#define MA_AAUDIO_UNSPECIFIED                           0
 
 /* Result codes. miniaudio only cares about the success code. */
 #define MA_AAUDIO_OK                                    0
@@ -29555,9 +29582,6 @@ typedef int32_t ma_aaudio_data_callback_result_t;
 #define MA_AAUDIO_CALLBACK_RESULT_CONTINUE              0
 #define MA_AAUDIO_CALLBACK_RESULT_STOP                  1
 
-/* Objects. */
-typedef struct ma_AAudioStreamBuilder_t* ma_AAudioStreamBuilder;
-typedef struct ma_AAudioStream_t*        ma_AAudioStream;
 
 typedef ma_aaudio_data_callback_result_t (* ma_AAudioStream_dataCallback) (ma_AAudioStream* pStream, void* pUserData, void* pAudioData, int32_t numFrames);
 typedef void                             (* ma_AAudioStream_errorCallback)(ma_AAudioStream *pStream, void *pUserData, ma_aaudio_result_t error);
@@ -30167,10 +30191,10 @@ static ma_result ma_context_uninit__aaudio(ma_context* pContext)
 
 static ma_result ma_context_init__aaudio(const ma_context_config* pConfig, ma_context* pContext)
 {
+    size_t i;
     const char* libNames[] = {
         "libaaudio.so"
     };
-    size_t i;
 
     for (i = 0; i < ma_countof(libNames); ++i) {
         pContext->aaudio.hAAudio = ma_dlopen(pContext, libNames[i]);
@@ -30677,7 +30701,7 @@ static void ma_buffer_queue_callback_capture__opensl_android(SLAndroidSimpleBuff
     */
 
     /* Don't do anything if the device is not started. */
-    if (pDevice->state != MA_STATE_STARTED) {
+    if (ma_device_get_state(pDevice) != MA_STATE_STARTED) {
         return;
     }
 
@@ -30715,7 +30739,7 @@ static void ma_buffer_queue_callback_playback__opensl_android(SLAndroidSimpleBuf
     (void)pBufferQueue;
 
     /* Don't do anything if the device is not started. */
-    if (pDevice->state != MA_STATE_STARTED) {
+    if (ma_device_get_state(pDevice) != MA_STATE_STARTED) {
         return;
     }
 
@@ -31346,15 +31370,19 @@ static ma_result ma_context_init_engine_nolock__opensl(ma_context* pContext)
 static ma_result ma_context_init__opensl(const ma_context_config* pConfig, ma_context* pContext)
 {
     ma_result result;
+
+#if !defined(MA_NO_RUNTIME_LINKING)
     size_t i;
     const char* libOpenSLESNames[] = {
         "libOpenSLES.so"
     };
+#endif
 
     MA_ASSERT(pContext != NULL);
 
     (void)pConfig;
 
+#if !defined(MA_NO_RUNTIME_LINKING)
     /*
     Dynamically link against libOpenSLES.so. I have now had multiple reports that SL_IID_ANDROIDSIMPLEBUFFERQUEUE cannot be found. One
     report was happening at compile time and another at runtime. To try working around this, I'm going to link to libOpenSLES at runtime
@@ -31369,49 +31397,68 @@ static ma_result ma_context_init__opensl(const ma_context_config* pConfig, ma_co
     }
 
     if (pContext->opensl.libOpenSLES == NULL) {
-        return MA_NO_BACKEND;   /* Couldn't find libOpenSLES.so */
+        ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_INFO, "[OpenSL|ES] Could not find libOpenSLES.so");
+        return MA_NO_BACKEND;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_ENGINE", &pContext->opensl.SL_IID_ENGINE);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_AUDIOIODEVICECAPABILITIES", &pContext->opensl.SL_IID_AUDIOIODEVICECAPABILITIES);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_ANDROIDSIMPLEBUFFERQUEUE", &pContext->opensl.SL_IID_ANDROIDSIMPLEBUFFERQUEUE);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_RECORD", &pContext->opensl.SL_IID_RECORD);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_PLAY", &pContext->opensl.SL_IID_PLAY);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_OUTPUTMIX", &pContext->opensl.SL_IID_OUTPUTMIX);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     result = ma_dlsym_SLInterfaceID__opensl(pContext, "SL_IID_ANDROIDCONFIGURATION", &pContext->opensl.SL_IID_ANDROIDCONFIGURATION);
     if (result != MA_SUCCESS) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         return result;
     }
 
     pContext->opensl.slCreateEngine = (ma_proc)ma_dlsym(pContext, pContext->opensl.libOpenSLES, "slCreateEngine");
     if (pContext->opensl.slCreateEngine == NULL) {
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
         ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_INFO, "[OpenSL|ES] Cannot find symbol slCreateEngine.");
         return MA_NO_BACKEND;
     }
+#else
+    pContext->opensl.SL_IID_ENGINE                    = (ma_handle)SL_IID_ENGINE;
+    pContext->opensl.SL_IID_AUDIOIODEVICECAPABILITIES = (ma_handle)SL_IID_AUDIOIODEVICECAPABILITIES;
+    pContext->opensl.SL_IID_ANDROIDSIMPLEBUFFERQUEUE  = (ma_handle)SL_IID_ANDROIDSIMPLEBUFFERQUEUE;
+    pContext->opensl.SL_IID_RECORD                    = (ma_handle)SL_IID_RECORD;
+    pContext->opensl.SL_IID_PLAY                      = (ma_handle)SL_IID_PLAY;
+    pContext->opensl.SL_IID_OUTPUTMIX                 = (ma_handle)SL_IID_OUTPUTMIX;
+    pContext->opensl.SL_IID_ANDROIDCONFIGURATION      = (ma_handle)SL_IID_ANDROIDCONFIGURATION;
+    pContext->opensl.slCreateEngine                   = (ma_proc)slCreateEngine;
+#endif
 
 
     /* Initialize global data first if applicable. */
@@ -31422,7 +31469,9 @@ static ma_result ma_context_init__opensl(const ma_context_config* pConfig, ma_co
     ma_spinlock_unlock(&g_maOpenSLSpinlock);
 
     if (result != MA_SUCCESS) {
-        return result;  /* Failed to initialize the OpenSL engine. */
+        ma_dlclose(pContext, pContext->opensl.libOpenSLES);
+        ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_INFO, "[OpenSL|ES] Failed to initialize OpenSL engine.");
+        return result;
     }
 
 
@@ -32577,6 +32626,7 @@ MA_API ma_result ma_context_init(const ma_backend backends[], ma_uint32 backendC
         }
 
         if (pContext->callbacks.onContextInit != NULL) {
+            ma_post_log_messagef(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize %s backend...", ma_get_backend_name(backend));
             result = pContext->callbacks.onContextInit(pContext, pConfig, &pContext->callbacks);
         } else {
             result = MA_NO_BACKEND;
@@ -32604,12 +32654,14 @@ MA_API ma_result ma_context_init(const ma_backend backends[], ma_uint32 backendC
             #ifdef MA_HAS_ALSA
                 case ma_backend_alsa:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize ALSA backend...");
                     result = ma_context_init__alsa(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_PULSEAUDIO
                 case ma_backend_pulseaudio:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize PulseAudio backend...");
                     result = ma_context_init__pulse(pConfig, pContext);
                 } break;
             #endif
@@ -32622,36 +32674,42 @@ MA_API ma_result ma_context_init(const ma_backend backends[], ma_uint32 backendC
             #ifdef MA_HAS_COREAUDIO
                 case ma_backend_coreaudio:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize CoreAudio backend...");
                     result = ma_context_init__coreaudio(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_SNDIO
                 case ma_backend_sndio:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize sndio backend...");
                     result = ma_context_init__sndio(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_AUDIO4
                 case ma_backend_audio4:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize audio(4) backend...");
                     result = ma_context_init__audio4(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_OSS
                 case ma_backend_oss:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize OSS backend...");
                     result = ma_context_init__oss(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_AAUDIO
                 case ma_backend_aaudio:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize AAudio backend...");
                     result = ma_context_init__aaudio(pConfig, pContext);
                 } break;
             #endif
             #ifdef MA_HAS_OPENSL
                 case ma_backend_opensl:
                 {
+                    ma_post_log_message(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Attempting to initialize OpenSL backend...");
                     result = ma_context_init__opensl(pConfig, pContext);
                 } break;
             #endif
@@ -32699,6 +32757,8 @@ MA_API ma_result ma_context_init(const ma_backend backends[], ma_uint32 backendC
 
             pContext->backend = backend;
             return result;
+        } else {
+            ma_post_log_messagef(pContext, NULL, MA_LOG_LEVEL_VERBOSE, "Failed to initialize %s backend.", ma_get_backend_name(backend));
         }
     }
 
@@ -32785,7 +32845,7 @@ static ma_bool32 ma_context_get_devices__enum_callback(ma_context* pContext, ma_
     const ma_uint32 bufferExpansionCount = 2;
     const ma_uint32 totalDeviceInfoCount = pContext->playbackDeviceInfoCount + pContext->captureDeviceInfoCount;
 
-    if (pContext->deviceInfoCapacity >= totalDeviceInfoCount) {
+    if (totalDeviceInfoCount >= pContext->deviceInfoCapacity) {
         ma_uint32 oldCapacity = pContext->deviceInfoCapacity;
         ma_uint32 newCapacity = oldCapacity + bufferExpansionCount;
         ma_device_info* pNewInfos = (ma_device_info*)ma__realloc_from_callbacks(pContext->pDeviceInfos, sizeof(*pContext->pDeviceInfos)*newCapacity, sizeof(*pContext->pDeviceInfos)*oldCapacity, &pContext->allocationCallbacks);
@@ -42203,13 +42263,13 @@ static MA_INLINE ma_uint32 ma_rb__extract_offset_loop_flag(ma_uint32 encodedOffs
 static MA_INLINE void* ma_rb__get_read_ptr(ma_rb* pRB)
 {
     MA_ASSERT(pRB != NULL);
-    return ma_offset_ptr(pRB->pBuffer, ma_rb__extract_offset_in_bytes(pRB->encodedReadOffset));
+    return ma_offset_ptr(pRB->pBuffer, ma_rb__extract_offset_in_bytes(c89atomic_load_32(&pRB->encodedReadOffset)));
 }
 
 static MA_INLINE void* ma_rb__get_write_ptr(ma_rb* pRB)
 {
     MA_ASSERT(pRB != NULL);
-    return ma_offset_ptr(pRB->pBuffer, ma_rb__extract_offset_in_bytes(pRB->encodedWriteOffset));
+    return ma_offset_ptr(pRB->pBuffer, ma_rb__extract_offset_in_bytes(c89atomic_load_32(&pRB->encodedWriteOffset)));
 }
 
 static MA_INLINE ma_uint32 ma_rb__construct_offset(ma_uint32 offsetInBytes, ma_uint32 offsetLoopFlag)
@@ -42302,8 +42362,8 @@ MA_API void ma_rb_reset(ma_rb* pRB)
         return;
     }
 
-    pRB->encodedReadOffset  = 0;
-    pRB->encodedWriteOffset = 0;
+    c89atomic_exchange_32(&pRB->encodedReadOffset, 0);
+    c89atomic_exchange_32(&pRB->encodedWriteOffset, 0);
 }
 
 MA_API ma_result ma_rb_acquire_read(ma_rb* pRB, size_t* pSizeInBytes, void** ppBufferOut)
@@ -42322,10 +42382,10 @@ MA_API ma_result ma_rb_acquire_read(ma_rb* pRB, size_t* pSizeInBytes, void** ppB
     }
 
     /* The returned buffer should never move ahead of the write pointer. */
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
     /*
@@ -42366,7 +42426,7 @@ MA_API ma_result ma_rb_commit_read(ma_rb* pRB, size_t sizeInBytes, void* pBuffer
         return MA_INVALID_ARGS;
     }
 
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
     /* Check that sizeInBytes is correct. It should never go beyond the end of the buffer. */
@@ -42402,10 +42462,10 @@ MA_API ma_result ma_rb_acquire_write(ma_rb* pRB, size_t* pSizeInBytes, void** pp
     }
 
     /* The returned buffer should never overtake the read buffer. */
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
     /*
@@ -42452,7 +42512,7 @@ MA_API ma_result ma_rb_commit_write(ma_rb* pRB, size_t sizeInBytes, void* pBuffe
         return MA_INVALID_ARGS;
     }
 
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
     /* Check that sizeInBytes is correct. It should never go beyond the end of the buffer. */
@@ -42487,10 +42547,10 @@ MA_API ma_result ma_rb_seek_read(ma_rb* pRB, size_t offsetInBytes)
         return MA_INVALID_ARGS;
     }
 
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
     newReadOffsetLoopFlag = readOffsetLoopFlag;
@@ -42531,10 +42591,10 @@ MA_API ma_result ma_rb_seek_write(ma_rb* pRB, size_t offsetInBytes)
         return MA_INVALID_ARGS;
     }
 
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
     newWriteOffsetLoopFlag = writeOffsetLoopFlag;
@@ -42573,10 +42633,10 @@ MA_API ma_int32 ma_rb_pointer_distance(ma_rb* pRB)
         return 0;
     }
 
-    readOffset = pRB->encodedReadOffset;
+    readOffset = c89atomic_load_32(&pRB->encodedReadOffset);
     ma_rb__deconstruct_offset(readOffset, &readOffsetInBytes, &readOffsetLoopFlag);
 
-    writeOffset = pRB->encodedWriteOffset;
+    writeOffset = c89atomic_load_32(&pRB->encodedWriteOffset);
     ma_rb__deconstruct_offset(writeOffset, &writeOffsetInBytes, &writeOffsetLoopFlag);
 
     if (readOffsetLoopFlag == writeOffsetLoopFlag) {
@@ -44899,7 +44959,7 @@ extern "C" {
 #define DRFLAC_XSTRINGIFY(x)     DRFLAC_STRINGIFY(x)
 #define DRFLAC_VERSION_MAJOR     0
 #define DRFLAC_VERSION_MINOR     12
-#define DRFLAC_VERSION_REVISION  24
+#define DRFLAC_VERSION_REVISION  25
 #define DRFLAC_VERSION_STRING    DRFLAC_XSTRINGIFY(DRFLAC_VERSION_MAJOR) "." DRFLAC_XSTRINGIFY(DRFLAC_VERSION_MINOR) "." DRFLAC_XSTRINGIFY(DRFLAC_VERSION_REVISION)
 #include <stddef.h>
 typedef   signed char           drflac_int8;
@@ -45260,7 +45320,7 @@ extern "C" {
 #define DRMP3_XSTRINGIFY(x)     DRMP3_STRINGIFY(x)
 #define DRMP3_VERSION_MAJOR     0
 #define DRMP3_VERSION_MINOR     6
-#define DRMP3_VERSION_REVISION  23
+#define DRMP3_VERSION_REVISION  25
 #define DRMP3_VERSION_STRING    DRMP3_XSTRINGIFY(DRMP3_VERSION_MAJOR) "." DRMP3_XSTRINGIFY(DRMP3_VERSION_MINOR) "." DRMP3_XSTRINGIFY(DRMP3_VERSION_REVISION)
 #include <stddef.h>
 typedef   signed char           drmp3_int8;
@@ -45408,12 +45468,6 @@ typedef struct
 DRMP3_API void drmp3dec_init(drmp3dec *dec);
 DRMP3_API int drmp3dec_decode_frame(drmp3dec *dec, const drmp3_uint8 *mp3, int mp3_bytes, void *pcm, drmp3dec_frame_info *info);
 DRMP3_API void drmp3dec_f32_to_s16(const float *in, drmp3_int16 *out, size_t num_samples);
-#ifndef DRMP3_DEFAULT_CHANNELS
-#define DRMP3_DEFAULT_CHANNELS      2
-#endif
-#ifndef DRMP3_DEFAULT_SAMPLE_RATE
-#define DRMP3_DEFAULT_SAMPLE_RATE   44100
-#endif
 typedef enum
 {
     drmp3_seek_origin_start,
@@ -64618,6 +64672,15 @@ The following miscellaneous changes have also been made.
 /*
 REVISION HISTORY
 ================
+v0.10.29 - 2020-12-26
+  - Fix some subtle multi-threading bugs on non-x86 platforms.
+  - Fix a bug resulting in superfluous memory allocations when enumerating devices.
+  - Core Audio: Fix a compilation error when compiling for iOS.
+
+v0.10.28 - 2020-12-16
+  - Fix a crash when initializing a POSIX thread.
+  - OpenSL|ES: Respect the MA_NO_RUNTIME_LINKING option.
+
 v0.10.27 - 2020-12-04
   - Add support for dynamically configuring some properties of `ma_noise` objects post-initialization.
   - Add support for configuring the channel mixing mode in the device config.
@@ -64626,7 +64689,6 @@ v0.10.27 - 2020-12-04
   - Fix some errors with stopping devices for synchronous backends where the backend's stop callback would get fired twice.
   - Fix a bug in the decoder due to using an uninitialized variable.
   - Fix some data race errors.
-  
 
 v0.10.26 - 2020-11-24
   - WASAPI: Fix a bug where the exclusive mode format may not be retrieved correctly due to accessing freed memory.
