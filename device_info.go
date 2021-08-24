@@ -48,7 +48,10 @@ type DeviceInfo struct {
 
 // Name returns the name of the device.
 func (d *DeviceInfo) Name() string {
-	return string(d.name[:])
+	// find the first null byte in d.name
+	var end int
+	for end = 0; end < len(d.name) && d.name[end] != 0; end++ {}
+	return string(d.name[:end])
 }
 
 // String returns string.
