@@ -18,19 +18,18 @@ func Capture(ctx context.Context, w io.Writer, config StreamConfig) error {
 	defer close(abortChan)
 	aborted := false
 
-	deviceCallbacks := malgo.DeviceCallbacks{
-		Data: func(outputSamples, inputSamples []byte, frameCount uint32) {
+
+		deviceConfig.DataCallback = func(_ malgo.Device, outputSamples, inputSamples *malgo.DataBuffer, frameCount int) {
 			if aborted {
 				return
 			}
 
-			_, err := w.Write(inputSamples)
+			_, err := w.Write(inputSamples.Bytes())
 			if err != nil {
 				aborted = true
 				abortChan <- err
 			}
-		},
 	}
 
-	return stream(ctx, abortChan, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, deviceConfig)
 }

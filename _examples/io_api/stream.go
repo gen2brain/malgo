@@ -6,8 +6,8 @@ import (
 	"github.com/gen2brain/malgo"
 )
 
-func stream(ctx context.Context, abortChan chan error, deviceConfig malgo.DeviceConfig, deviceCallbacks malgo.DeviceCallbacks) error {
-	device, err := malgo.InitDevice(malgo.DefaultContext, deviceConfig, deviceCallbacks)
+func stream(ctx context.Context, abortChan chan error, deviceConfig malgo.DeviceConfig) error {
+	device, err := malgo.InitDevice(malgo.DefaultContext, deviceConfig)
 	if err != nil {
 		return err
 	}

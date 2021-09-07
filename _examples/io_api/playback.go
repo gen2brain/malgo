@@ -18,8 +18,7 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 	defer close(abortChan)
 	aborted := false
 
-	deviceCallbacks := malgo.DeviceCallbacks{
-		Data: func(outputSamples, inputSamples []byte, frameCount uint32) {
+		deviceConfig.DataCallback = func(_ malgo.Device, outputSamples, inputSamples *malgo.DataBuffer, frameCount int) {
 			if aborted {
 				return
 			}
@@ -27,7 +26,7 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 				return
 			}
 
-			read, err := io.ReadFull(r, outputSamples)
+			read, err := io.ReadFull(r, outputSamples.Bytes())
 			if read <= 0 {
 				if err != nil {
 					aborted = true
@@ -35,8 +34,7 @@ func Playback(ctx context.Context, r io.Reader, config StreamConfig) error {
 				}
 				return
 			}
-		},
-	}
+		}
 
-	return stream(ctx, abortChan, deviceConfig, deviceCallbacks)
+	return stream(ctx, abortChan, deviceConfig)
 }
