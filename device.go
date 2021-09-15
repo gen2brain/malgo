@@ -1,6 +1,16 @@
 package malgo
+/*
+#include "malgo.h"
+static void setGoDeviceConfigCallbacks(ma_device_config* config, ma_bool8 data, ma_bool8 stop) {
+	if(data) {
+		config->dataCallback = goDataCallbackWrapper;
+	}
+	if(stop) {
+		config->stopCallback = goStopCallbackWrapper;
+	}
+}
 
-// #include "malgo.h"
+*/
 import "C"
 import (
 	"sync"
@@ -19,6 +29,8 @@ type DeviceCallbacks struct {
 	Data DataProc
 	// Stop is called when the device stopped.
 	Stop StopProc
+	// any C memory associated with this device. Make sure it's freed when Device.Free() is called.
+	memory pointerList
 }
 
 // Device represents a streaming instance.
@@ -38,19 +50,19 @@ func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks Devi
 	if dev == 0 {
 		return nil, ErrOutOfMemory
 	}
-
+	cConfig, memory := deviceConfig.toCRepr()
 	rawDevice := dev.cptr()
-	C.goSetDeviceConfigCallbacks(deviceConfig.cptr())
-	result := C.ma_device_init(context.cptr(), deviceConfig.cptr(), rawDevice)
+	C.setGoDeviceConfigCallbacks(&cConfig, boolToInt8(deviceCallbacks.Data!=nil), boolToInt8(deviceCallbacks.Stop!=nil))
+	result := C.ma_device_init(context.cptr(), &cConfig, rawDevice)
 	if result != 0 {
 		dev.free()
 		return nil, errorFromResult(Result(result))
 	}
-	deviceMutex.Lock()
-	dataCallbacks[rawDevice] = deviceCallbacks.Data
-	stopCallbacks[rawDevice] = deviceCallbacks.Stop
-	deviceMutex.Unlock()
-
+	internalInfo := deviceCallbacks
+	internalInfo.memory = memory
+	deviceInfosMutex.Lock()
+	deviceInfos[rawDevice] = &internalInfo
+	deviceInfosMutex.Unlock()
 	return &dev, nil
 }
 
@@ -60,6 +72,12 @@ func (dev Device) cptr() *C.ma_device {
 
 func (dev Device) free() {
 	C.ma_aligned_free(unsafe.Pointer(dev), nil)
+	deviceInfosMutex.Lock()
+	if info, exists := deviceInfos[dev.cptr()]; exists {
+		delete(deviceInfos, dev.cptr())
+		info.memory.free()
+	}
+	deviceInfosMutex.Unlock()
 }
 
 // Type returns device type.
@@ -129,51 +147,33 @@ func (dev *Device) Stop() error {
 // harmless if you do.
 func (dev *Device) Uninit() {
 	rawDevice := dev.cptr()
-	deviceMutex.Lock()
-	delete(dataCallbacks, rawDevice)
-	delete(stopCallbacks, rawDevice)
-	deviceMutex.Unlock()
-
 	C.ma_device_uninit(rawDevice)
 	dev.free()
 }
-
-var deviceMutex sync.Mutex
-var dataCallbacks = make(map[*C.ma_device]DataProc)
-var stopCallbacks = make(map[*C.ma_device]StopProc)
+// RWMutex so multiple device callbacks don't have to wait for each other
+var deviceInfosMutex sync.RWMutex
+var deviceInfos = make(map[*C.ma_device]*DeviceCallbacks)
 
 //export goDataCallback
-func goDataCallback(pDevice *C.ma_device, pOutput, pInput unsafe.Pointer, frameCount C.ma_uint32) {
-	deviceMutex.Lock()
-	callback := dataCallbacks[pDevice]
-	deviceMutex.Unlock()
-
-	if callback != nil {
-		inputSamples := []byte(nil)
-		outputSamples := []byte(nil)
-		if pOutput != nil {
-			sampleCount := uint32(frameCount) * uint32(pDevice.playback.channels)
-			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.playback.format))
-			outputSamples = (*[1 << 30]byte)(pOutput)[0 : sampleCount*sizeInBytes]
-		}
-
-		if pInput != nil {
-			sampleCount := uint32(frameCount) * uint32(pDevice.capture.channels)
-			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.capture.format))
-			inputSamples = (*[1 << 30]byte)(pInput)[0 : sampleCount*sizeInBytes]
-		}
-
-		callback(outputSamples, inputSamples, uint32(frameCount))
+func goDataCallback(pDevice *C.ma_device, pOutput, pInput unsafe.Pointer, frameCount C.ma_uint32, outputSizeInBytes, inputSizeInBytes C.ma_uint32) {
+	deviceInfosMutex.RLock()
+	info := deviceInfos[pDevice]
+	deviceInfosMutex.RUnlock()
+	var inputSamples, outputSamples []byte
+	if pOutput != nil {
+		outputSamples = (*[1 << 30]byte)(pOutput)[0 : outputSizeInBytes]
 	}
+	if pInput != nil {
+		inputSamples = (*[1 << 30]byte)(pInput)[0 : inputSizeInBytes]
+	}
+	info.Data(outputSamples, inputSamples, uint32(frameCount))
 }
 
 //export goStopCallback
 func goStopCallback(pDevice *C.ma_device) {
-	deviceMutex.Lock()
-	callback := stopCallbacks[pDevice]
-	deviceMutex.Unlock()
+	deviceInfosMutex.RLock()
+	callback := deviceInfos[pDevice].Stop
+	deviceInfosMutex.RUnlock()
 
-	if callback != nil {
-		callback()
-	}
+	callback()
 }
