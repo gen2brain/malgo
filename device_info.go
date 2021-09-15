@@ -20,11 +20,6 @@ func (d DeviceID) String() string {
 	}
 	return hex.EncodeToString(d[:displayLen])
 }
-
-func (d *DeviceID) Pointer() unsafe.Pointer {
-	return C.CBytes(d[:])
-}
-
 func (d *DeviceID) cptr() *C.ma_device_id {
 	return (*C.ma_device_id)(unsafe.Pointer(d))
 }
@@ -32,30 +27,38 @@ func (d *DeviceID) cptr() *C.ma_device_id {
 // DeviceInfo type.
 type DeviceInfo struct {
 	ID            DeviceID
-	name          [256]byte
-	IsDefault     uint32
-	FormatCount   uint32
-	Formats       [6]uint32
-	MinChannels   uint32
-	MaxChannels   uint32
-	MinSampleRate uint32
-	MaxSampleRate uint32
-
-	_ uint32
-	_ [64]byte
-	_ [4]byte
+	Name          string
+	IsDefault     bool
+	// the formats supported by the device
+	Formats       []FormatType
+	MinChannels   int
+	MaxChannels   int
+	MinSampleRate int
+	MaxSampleRate int
 }
+// String returns string.
+func deviceInfoFromCRepr(cInfo C.ma_device_info) DeviceInfo {
+	info := DeviceInfo {
+		ID : *(*DeviceID)(unsafe.Pointer(&cInfo.id)),
+		Name: goString(&cInfo.name[0]),
+		IsDefault: intToBool(cInfo.isDefault),
+		Formats: func() []FormatType {
 
-// Name returns the name of the device.
-func (d *DeviceInfo) Name() string {
-	return string(d.name[:])
+			var formats = make([]FormatType, int(cInfo.formatCount))
+			for pos, i := range cInfo.formats[:int(cInfo.formatCount)] {
+				formats[pos] = FormatType(i)
+			}
+			return formats
+		}(),
+		MinChannels: int(cInfo.minChannels),
+		MaxChannels: int(cInfo.maxChannels),
+		MinSampleRate: int(cInfo.minSampleRate),
+		MaxSampleRate: int(cInfo.maxSampleRate),
+	}
+	return info
 }
 
 // String returns string.
 func (d *DeviceInfo) String() string {
-	return fmt.Sprintf("{ID: [%v], Name: %s}", d.ID, d.Name())
-}
-
-func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
-	return *(*DeviceInfo)(ptr)
+	return fmt.Sprintf("{ID: [%v], Name: %s}", d.ID, d.Name)
 }
