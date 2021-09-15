@@ -2,7 +2,7 @@
 #include "miniaudio.h"
 #include "callbacks.h"
 extern void goLogCallbackWrapper(ma_context* pContext, ma_device* pDevice, ma_uint32 logLevel, const char* message) {
-	goLogCallback(pContext, pDevice, logLevel, (char*)(message)); // cast to remove const qualifier that  Go doesn't know how to handle
+	goLogCallback(pContext, pDevice, (char*)(message)); // cast to remove const qualifier that  Go doesn't know how to handle
 }
 extern void goDataCallbackWrapper(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount) {
 	// calculate the buffers size here to avoid C > Go > C calls
