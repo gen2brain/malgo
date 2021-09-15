@@ -46,9 +46,9 @@ type internalContextInfo struct {
 
 
 // Initializes a new ContextConfig with defaults. You must call this instead of creating a ContextConfig object directly.
-func NewContextConfig() *ContextConfig {
+func NewContextConfig() ContextConfig {
 	cConfig := C.ma_context_config_init()
-	config := &ContextConfig{}
+	config := ContextConfig{}
 	config.Alsa.UseVerboseDeviceEnumeration = intToBool(cConfig.alsa.useVerboseDeviceEnumeration)
 
 	config.Pulse.ApplicationName = goString(cConfig.pulse.pApplicationName)
@@ -136,7 +136,7 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	info := make([]DeviceInfo, deviceCount)
 	deviceInfoAddr := uintptr(unsafe.Pointer(devices))
 	for i := 0; i < deviceCount; i++ {
-		info[i] = deviceInfoFromPointer(unsafe.Pointer(deviceInfoAddr))
+		info[i] = deviceInfoFromCRepr(*(*C.ma_device_info)(unsafe.Pointer(deviceInfoAddr)))
 		deviceInfoAddr += rawDeviceInfoSize
 	}
 
@@ -153,9 +153,9 @@ func (ctx Context) DeviceInfo(kind DeviceType, id DeviceID, mode ShareMode) (Dev
 		return DeviceInfo{}, err
 	}
 
-	return deviceInfoFromPointer(unsafe.Pointer(&info)), nil
+	return deviceInfoFromCRepr(info), nil
 }
-// for making some context functions like getDevics threadsafe
+// for making some context functions like getDevice threadsafe
 var contextMutex sync.Mutex
 
 
