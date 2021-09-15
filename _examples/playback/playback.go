@@ -28,7 +28,7 @@ func main() {
 	defer file.Close()
 
 	var reader io.Reader
-	var channels, sampleRate uint32
+	var channels, sampleRate int
 
 	switch strings.ToLower(filepath.Ext(os.Args[1])) {
 	case ".wav":
@@ -40,8 +40,8 @@ func main() {
 		}
 
 		reader = w
-		channels = uint32(f.NumChannels)
-		sampleRate = f.SampleRate
+		channels = int(f.NumChannels)
+		sampleRate = int(f.SampleRate)
 
 	case ".mp3":
 		m, err := mp3.NewDecoder(file)
@@ -52,13 +52,13 @@ func main() {
 
 		reader = m
 		channels = 2
-		sampleRate = uint32(m.SampleRate())
+		sampleRate = m.SampleRate()
 	default:
 		fmt.Println("Not a valid file.")
 		os.Exit(1)
 	}
 
-	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
+	ctx, err := malgo.InitContext(nil, malgo.NewContextConfig(), func(message string) {
 		fmt.Printf("LOG <%v>\n", message)
 	})
 	if err != nil {
@@ -74,7 +74,7 @@ func main() {
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = channels
 	deviceConfig.SampleRate = sampleRate
-	deviceConfig.Alsa.NoMMap = 1
+	deviceConfig.Alsa.NoMMap = true
 
 	// This is the function that's used for sending more data to the device for playback.
 	onSamples := func(pOutputSample, pInputSamples []byte, framecount uint32) {

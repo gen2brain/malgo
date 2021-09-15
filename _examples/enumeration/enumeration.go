@@ -33,7 +33,7 @@ func main() {
 			e = err.Error()
 		}
 		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
-			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
+			i, info.ID, info.Name, e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
 	}
 
 	fmt.Println()
@@ -53,6 +53,6 @@ func main() {
 			e = err.Error()
 		}
 		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
-			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
+			i, info.ID, info.Name, e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
 	}
 }

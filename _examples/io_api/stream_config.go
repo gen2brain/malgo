@@ -17,11 +17,11 @@ func (config StreamConfig) asDeviceConfig(deviceType malgo.DeviceType) malgo.Dev
 		deviceConfig.Playback.Format = config.Format
 	}
 	if config.Channels != 0 {
-		deviceConfig.Capture.Channels = uint32(config.Channels)
-		deviceConfig.Playback.Channels = uint32(config.Channels)
+		deviceConfig.Capture.Channels = config.Channels
+		deviceConfig.Playback.Channels = config.Channels
 	}
 	if config.SampleRate != 0 {
-		deviceConfig.SampleRate = uint32(config.SampleRate)
+		deviceConfig.SampleRate = config.SampleRate
 	}
 	return deviceConfig
 }

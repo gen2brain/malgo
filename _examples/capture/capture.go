@@ -27,16 +27,16 @@ func main() {
 	deviceConfig.Playback.Format = malgo.FormatS16
 	deviceConfig.Playback.Channels = 1
 	deviceConfig.SampleRate = 44100
-	deviceConfig.Alsa.NoMMap = 1
+	deviceConfig.Alsa.NoMMap = true
 
-	var playbackSampleCount uint32
-	var capturedSampleCount uint32
+	var playbackSampleCount int
+	var capturedSampleCount int
 	pCapturedSamples := make([]byte, 0)
 
-	sizeInBytes := uint32(malgo.SampleSizeInBytes(deviceConfig.Capture.Format))
+	sizeInBytes := malgo.SampleSizeInBytes(deviceConfig.Capture.Format)
 	onRecvFrames := func(pSample2, pSample []byte, framecount uint32) {
 
-		sampleCount := framecount * deviceConfig.Capture.Channels * sizeInBytes
+		sampleCount := int(framecount) * deviceConfig.Capture.Channels * sizeInBytes
 
 		newCapturedSampleCount := capturedSampleCount + sampleCount
 
@@ -68,7 +68,7 @@ func main() {
 	device.Uninit()
 
 	onSendFrames := func(pSample, nil []byte, framecount uint32) {
-		samplesToRead := framecount * deviceConfig.Playback.Channels * sizeInBytes
+		samplesToRead := int(framecount) * deviceConfig.Playback.Channels * sizeInBytes
 		if samplesToRead > capturedSampleCount-playbackSampleCount {
 			samplesToRead = capturedSampleCount - playbackSampleCount
 		}
@@ -77,7 +77,7 @@ func main() {
 
 		playbackSampleCount += samplesToRead
 
-		if playbackSampleCount == uint32(len(pCapturedSamples)) {
+		if playbackSampleCount == len(pCapturedSamples) {
 			playbackSampleCount = 0
 		}
 	}
