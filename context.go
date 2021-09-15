@@ -1,9 +1,15 @@
 package malgo
 
-// #include "malgo.h"
+/*
+#include "malgo.h"
+static void setGoContextConfigCallbacks(ma_context_config* pConfig, ma_bool8 log) {
+	if(log) {
+		pConfig->logCallback = goLogCallbackWrapper;
+	}
+}
+*/
 import "C"
 import (
-	"reflect"
 	"sync"
 	"unsafe"
 )
@@ -11,59 +17,81 @@ import (
 // LogProc type.
 type LogProc func(message string)
 
-// AlsaContextConfig type.
-type AlsaContextConfig struct {
-	UseVerboseDeviceEnumeration uint32
-}
-
-// PulseContextConfig type.
-type PulseContextConfig struct {
-	PApplicationName *byte
-	PServerName      *byte
-	// Enables autospawning of the PulseAudio daemon if necessary.
-	TryAutoSpawn uint32
-	// Padding
-	_ [4]byte
-}
-
-// CoreAudioConfig type.
-type CoreAudioConfig struct {
-	SessionCategory        IOSSessionCategory
-	SessionCategoryOptions IOSSessionCategoryOptions
-}
-
-// JackContextConfig type.
-type JackContextConfig struct {
-	PClientName    *byte
-	TryStartServer uint32
-	// Padding
-	_ [4]byte
-}
-
-// ContextConfig type.
 type ContextConfig struct {
-	LogCallback         *[0]byte
-	ThreadPriority      ThreadPriority
-	PUserData           *byte
-	AllocationCallbacks AllocationCallbacks
-	Alsa                AlsaContextConfig
-	Pulse               PulseContextConfig
-	CoreAudio           CoreAudioConfig
-	Jack                JackContextConfig
+	ThreadPriority  int
+	ThreadStackSize int
+	Alsa struct {
+		UseVerboseDeviceEnumeration bool
+	}
+	Pulse struct {
+		ApplicationName string
+		ServerName      string
+		// Enables autospawning of the PulseAudio daemon if necessary.
+		TryAutoSpawn bool
+	}
+	CoreAudio struct {
+		SessionCategory                                  int
+		SessionCategoryOptions                           int
+		NoAudioSessionActivate, NoAudioSessionDeactivate bool
+	}
+	Jack struct {
+		ClientName     string
+		TryStartServer bool
+	}
+}
+type internalContextInfo struct {
+	LogProc     LogProc
+	memory pointerList
 }
 
-func (d *ContextConfig) cptr() *C.ma_context_config {
-	return (*C.ma_context_config)(unsafe.Pointer(d))
+
+// Initializes a new ContextConfig with defaults. You must call this instead of creating a ContextConfig object directly.
+func NewContextConfig() *ContextConfig {
+	cConfig := C.ma_context_config_init()
+	config := &ContextConfig{}
+	config.Alsa.UseVerboseDeviceEnumeration = intToBool(cConfig.alsa.useVerboseDeviceEnumeration)
+
+	config.Pulse.ApplicationName = goString(cConfig.pulse.pApplicationName)
+	config.Pulse.ServerName = goString(cConfig.pulse.pServerName)
+	config.Pulse.TryAutoSpawn = intToBool(cConfig.pulse.tryAutoSpawn)
+
+	config.CoreAudio.SessionCategory = int(cConfig.coreaudio.sessionCategory)
+	config.CoreAudio.SessionCategoryOptions = int(cConfig.coreaudio.sessionCategoryOptions)
+	config.CoreAudio.NoAudioSessionActivate = intToBool(cConfig.coreaudio.noAudioSessionActivate)
+	config.CoreAudio.NoAudioSessionDeactivate = intToBool(cConfig.coreaudio.noAudioSessionDeactivate)
+
+	config.Jack.ClientName = goString(cConfig.jack.pClientName)
+	config.Jack.TryStartServer = intToBool(cConfig.jack.tryStartServer)
+	config.ThreadPriority = int(cConfig.threadPriority)
+	config.ThreadStackSize = int(cConfig.threadStackSize)
+	return config
 }
 
-// AllocationCallbacks types.
-type AllocationCallbacks struct {
-	PUserData *byte
-	OnMalloc  *[0]byte
-	OnRealloc *[0]byte
-	OnFree    *[0]byte
-}
+// converts this config to a C.ma_context_config for use in ma_context_init
+func (self *ContextConfig) toCRepr() (C.ma_context_config, pointerList) {
+	// even if we forget to initialize some fields, telling Miniaudio to reinitialize the config ensures it doesn't break anything
+	config := C.ma_context_config_init()
+	// a list of pointers that holds any memory allocated by the config like strings and ma_backends ETC. This is returned alongside the new cConfig, is stored in the internalDeviceInfo struct and freed when Context.Free() is called
+	var memory pointerList
 
+	config.threadPriority = C.ma_thread_priority(self.ThreadPriority)
+	config.threadStackSize = C.size_t(self.ThreadStackSize)
+	// use a C function to set the callbacks so the C compiler has a chance to check if the callback types match
+	config.alsa.useVerboseDeviceEnumeration = boolToInt(self.Alsa.UseVerboseDeviceEnumeration)
+
+	config.pulse.pApplicationName = memory.cString(self.Pulse.ApplicationName)
+	config.pulse.pServerName = memory.cString(self.Pulse.ServerName)
+	config.pulse.tryAutoSpawn = boolToInt(self.Pulse.TryAutoSpawn)
+
+	config.coreaudio.sessionCategory = C.ma_ios_session_category(self.CoreAudio.SessionCategory)
+	config.coreaudio.sessionCategoryOptions = C.ma_uint32(self.CoreAudio.SessionCategoryOptions)
+	config.coreaudio.noAudioSessionActivate = boolToInt(self.CoreAudio.NoAudioSessionActivate)
+	config.coreaudio.noAudioSessionDeactivate = boolToInt(self.CoreAudio.NoAudioSessionDeactivate)
+
+	config.jack.pClientName = memory.cString(self.Jack.ClientName)
+	config.jack.tryStartServer = boolToInt(self.Jack.TryStartServer)
+	return config, memory
+}
 // Context is used for selecting and initializing the relevant backends.
 type Context uintptr
 
@@ -127,31 +155,21 @@ func (ctx Context) DeviceInfo(kind DeviceType, id DeviceID, mode ShareMode) (Dev
 
 	return deviceInfoFromPointer(unsafe.Pointer(&info)), nil
 }
-
+// for making some context functions like getDevics threadsafe
 var contextMutex sync.Mutex
-var logProcMap = make(map[*C.ma_context]LogProc)
 
-// SetLogProc sets the logging callback for the context.
-func (ctx Context) SetLogProc(proc LogProc) {
-	contextMutex.Lock()
-	defer contextMutex.Unlock()
-	ptr := ctx.cptr()
-	if proc != nil {
-		logProcMap[ptr] = proc
-	} else {
-		delete(logProcMap, ptr)
-	}
-}
+
+var contextInfosMutex sync.Mutex
+var contextInfos = make(map[*C.ma_context]*internalContextInfo)
 
 //export goLogCallback
 func goLogCallback(pContext *C.ma_context, pDevice *C.ma_device, message *C.char) {
-	contextMutex.Lock()
-	callback := logProcMap[pContext]
-	contextMutex.Unlock()
+	contextInfosMutex.Lock()
+	callback := contextInfos[pContext].LogProc
+	contextInfosMutex.Unlock()
 
-	if callback != nil {
-		callback(C.GoString(message))
-	}
+
+	callback(goString(message))
 }
 
 // AllocatedContext is a Context that has been created by the application.
@@ -163,28 +181,36 @@ type AllocatedContext struct {
 // InitContext creates and initializes a context.
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
-	C.goSetContextConfigCallbacks(config.cptr())
 	ctx := AllocatedContext{
 		Context: Context(C.ma_malloc(C.sizeof_ma_context, nil)),
 	}
 	if ctx.Context == 0 {
 		return nil, ErrOutOfMemory
 	}
-	ctx.SetLogProc(logProc)
 
 	var backendsArg *C.ma_backend
 	backendCountArg := (C.ma_uint32)(len(backends))
+	cConfig, memory := config.toCRepr()
+	C.setGoContextConfigCallbacks(&cConfig, boolToInt8(logProc != nil))
 	if backendCountArg > 0 {
-		backendsArg = (*C.ma_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
+		// allocate the backends array in C land and add it to the pointer list
+		backendsArg = (*C.ma_backend)(C.malloc(C.size_t(len(backends) * C.sizeof_ma_backend)))
+		for i := 0;  i < len(backends); i++ {
+			offset := uintptr(i) * C.sizeof_ma_backend
+			ptr := (*C.ma_backend)(unsafe.Pointer(uintptr(unsafe.Pointer(backendsArg)) + offset))
+		*ptr = C.ma_backend(backends[i])
+		}
+		memory.addPointer(unsafe.Pointer(backendsArg))
 	}
-
-	result := C.ma_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
+	result := C.ma_context_init(backendsArg, backendCountArg, &cConfig, ctx.cptr())
 	err := errorFromResult(Result(result))
 	if err != nil {
-		ctx.SetLogProc(nil)
-		ctx.Free()
+		C.ma_free(unsafe.Pointer(ctx.cptr()), nil)
 		return nil, err
 	}
+	contextInfosMutex.Lock()
+	contextInfos[ctx.cptr()] = &internalContextInfo{LogProc: logProc, memory: memory}
+contextInfosMutex.Unlock()
 	return &ctx, nil
 }
 
@@ -194,7 +220,13 @@ func (ctx *AllocatedContext) Free() {
 	if ctx.Context == 0 {
 		return
 	}
-	ctx.SetLogProc(nil)
+
 	C.ma_free(unsafe.Pointer(ctx.cptr()), nil)
+	contextInfosMutex.Lock()
+	if info, exists := contextInfos[ctx.cptr()]; exists {
+		delete(contextInfos, ctx.cptr())
+		info.memory.free()
+	}
+contextInfosMutex.Unlock()
 	ctx.Context = 0
 }
