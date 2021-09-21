@@ -202,15 +202,17 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 		}
 		memory.addPointer(unsafe.Pointer(backendsArg))
 	}
+	// we need to store the internalContextInfo before initializing the context because the LogProc can be called during context initialization.
+	contextInfosMutex.Lock()
+	contextInfos[ctx.cptr()] = &internalContextInfo{LogProc: logProc, memory: memory}
 	result := C.ma_context_init(backendsArg, backendCountArg, &cConfig, ctx.cptr())
 	err := errorFromResult(Result(result))
 	if err != nil {
 		C.ma_free(unsafe.Pointer(ctx.cptr()), nil)
+		delete(contextInfos, ctx.cptr())
 		return nil, err
 	}
-	contextInfosMutex.Lock()
-	contextInfos[ctx.cptr()] = &internalContextInfo{LogProc: logProc, memory: memory}
-contextInfosMutex.Unlock()
+	contextInfosMutex.Unlock()
 	return &ctx, nil
 }
 
