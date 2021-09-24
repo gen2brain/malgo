@@ -82,6 +82,9 @@ const (
 // Result type.
 type Result int32
 
+func (self Result) Error() string {
+	return goString(C.ma_get_Result_description(C.ma_result(self)))
+}
 
 // ResampleAlgorithm type.
 type ResampleAlgorithm uint32
