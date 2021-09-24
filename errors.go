@@ -6,6 +6,15 @@ package malgo
 */
 import "C"
 
+// Result type.
+type Result int32
+
+func (self Result) Error() string {
+	return C.GoString(C.ma_result_description(C.ma_result(self)))
+}
+
+
+
 
 // Errors.
 var (

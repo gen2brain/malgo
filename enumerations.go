@@ -1,9 +1,5 @@
 package malgo
 
-/*
-#include "malgo.h"
-*/
-import "C"
 
 // Backend type.
 type Backend uint32
@@ -83,14 +79,6 @@ const (
 
 	ThreadPriorityDefault ThreadPriority = 0
 )
-
-// Result type.
-type Result int32
-
-func (self Result) Error() string {
-	return C.GoString(C.ma_result_description(C.ma_result(self)))
-}
-
 // ResampleAlgorithm type.
 type ResampleAlgorithm uint32
 
