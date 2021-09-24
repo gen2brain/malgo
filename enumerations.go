@@ -1,5 +1,10 @@
 package malgo
 
+/*
+#include "malgo.h"
+*/
+import "C"
+
 // Backend type.
 type Backend uint32
 
@@ -83,7 +88,7 @@ const (
 type Result int32
 
 func (self Result) Error() string {
-	return goString(C.ma_get_Result_description(C.ma_result(self)))
+	return C.GoString(C.ma_result_description(C.ma_result(self)))
 }
 
 // ResampleAlgorithm type.
