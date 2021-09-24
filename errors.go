@@ -103,11 +103,11 @@ var (
 	ErrFailedToStopBackendDevice      = Result(C.MA_FAILED_TO_STOP_BACKEND_DEVICE)
 )
 // errorFromResult returns error for result code.
-func errorFromResult(r Result) error {
+func errorFromResult(r C.ma_result) error {
 	switch r {
 	case C.MA_SUCCESS:
 		return nil
 	default:
-	return r
+	return Result(r)
 	}
 }
