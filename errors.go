@@ -10,15 +10,17 @@ import "C"
 type Result int32
 
 func (self Result) Error() string {
-	return C.GoString(C.ma_result_description(C.ma_result(self)))
+	return errTag + C.GoString(C.ma_result_description(C.ma_result(self)))
 }
 
 
 
 
 // Errors.
+const (
+	errTag = "miniaudio: "
+)
 var (
-	errTag = "miniaudio"
 	//  General errors.
 	ErrGeneric            = Result(C.MA_ERROR)
 	ErrInvalidArgs      = Result(C.MA_INVALID_ARGS)
