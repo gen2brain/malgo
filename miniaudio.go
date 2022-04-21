@@ -2,7 +2,7 @@
 package malgo
 
 /*
-#cgo CFLAGS: -std=gnu99
+#cgo CFLAGS: -std=gnu99 -Wno-unused-result
 #cgo ma_debug CFLAGS: -DMA_DEBUG_OUTPUT=1
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
