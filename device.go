@@ -44,7 +44,7 @@ func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks Devi
 	result := C.ma_device_init(context.cptr(), deviceConfig.cptr(), rawDevice)
 	if result != 0 {
 		dev.free()
-		return nil, errorFromResult(Result(result))
+		return nil, errorFromResult(result)
 	}
 	deviceMutex.Lock()
 	dataCallbacks[rawDevice] = deviceCallbacks.Data
@@ -103,7 +103,7 @@ func (dev *Device) SampleRate() uint32 {
 // waits on a mutex for thread-safety.
 func (dev *Device) Start() error {
 	result := C.ma_device_start(dev.cptr())
-	return errorFromResult(Result(result))
+	return errorFromResult(result)
 }
 
 // IsStarted determines whether or not the device is started.
@@ -120,7 +120,7 @@ func (dev *Device) IsStarted() bool {
 // the buffer size that was specified at initialization time).
 func (dev *Device) Stop() error {
 	result := C.ma_device_stop(dev.cptr())
-	return errorFromResult(Result(result))
+	return errorFromResult(result)
 }
 
 // Uninit uninitializes a device.

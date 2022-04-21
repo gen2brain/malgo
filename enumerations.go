@@ -1,5 +1,6 @@
 package malgo
 
+
 // Backend type.
 type Backend uint32
 
@@ -78,55 +79,6 @@ const (
 
 	ThreadPriorityDefault ThreadPriority = 0
 )
-
-// Result type.
-type Result int32
-
-// Return codes.
-const (
-	Success = 0
-
-	//  General errors.
-	Error            = -1 // a generic error
-	InvalidArgs      = -2
-	InvalidPperation = -3
-	OutOfMemory      = -4
-	AccessDenied     = -5
-	TooLarge         = -6
-	Timeout          = -7
-
-	// General miniaudio-specific errors.
-	FormatNotSupported     = -100
-	DeviceTypeNotSupported = -101
-	ShareModeNotSupported  = -102
-	NoBackend              = -103
-	NoDevice               = -104
-	APINotFound            = -105
-	InvalidDeviceConfig    = -106
-
-	// State errors.
-	DeviceBusy           = -200
-	DeviceNotInitialized = -201
-	DeviceNotStarted     = -202
-	DeviceUnavailable    = -203
-
-	// Operation errors.
-	FailedToMapDeviceBuffer        = -300
-	FailedToUnmapDeviceBuffer      = -301
-	FailedToInitBackend            = -302
-	FailedToReadDataFromDevice     = -304
-	FailedToReadDataFromClient     = -303
-	FailedToSendDataToClient       = -305
-	FailedToSendDataToDevice       = -306
-	FailedToOpenBackendDevice      = -307
-	FailedToStartBackendDevice     = -308
-	FailedToStopBackendDevice      = -309
-	FailedToConfigureBackendDevice = -310
-	FailedToCreateMutex            = -311
-	FailedToCreateEvent            = -312
-	FailedToCreateThread           = -313
-)
-
 // ResampleAlgorithm type.
 type ResampleAlgorithm uint32
 

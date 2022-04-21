@@ -79,7 +79,7 @@ func (ctx Context) cptr() *C.ma_context {
 // Results are undefined if you call this while any device created by this context is still active.
 func (ctx Context) Uninit() error {
 	result := C.ma_context_uninit(ctx.cptr())
-	return errorFromResult(Result(result))
+	return errorFromResult(result)
 }
 
 // Devices retrieves basic information about every active playback or capture device.
@@ -95,7 +95,7 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 	result := C.ma_context_get_devices(ctx.cptr(),
 		&playbackDevices, &playbackDeviceCount,
 		&captureDevices, &captureDeviceCount)
-	err := errorFromResult(Result(result))
+	err := errorFromResult(result)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (ctx Context) DeviceInfo(kind DeviceType, id DeviceID, mode ShareMode) (Dev
 	var info C.ma_device_info
 
 	result := C.ma_context_get_device_info(ctx.cptr(), C.ma_device_type(kind), id.cptr(), C.ma_share_mode(mode), &info)
-	err := errorFromResult(Result(result))
+	err := errorFromResult(result)
 	if err != nil {
 		return DeviceInfo{}, err
 	}
@@ -179,7 +179,7 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 	}
 
 	result := C.ma_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
-	err := errorFromResult(Result(result))
+	err := errorFromResult(result)
 	if err != nil {
 		ctx.SetLogProc(nil)
 		ctx.Free()
