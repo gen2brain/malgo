@@ -14,7 +14,7 @@ func TestCapturePlayback(t *testing.T) {
 		fmt.Fprintf(ioutil.Discard, message)
 	}
 
-	ctx, err := malgo.InitContext([]malgo.Backend{malgo.BackendNull}, malgo.ContextConfig{}, onLog)
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, onLog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestErrors(t *testing.T) {
 		t.Fatalf("context init with invalid backend")
 	}
 
-	ctx, err := malgo.InitContext([]malgo.Backend{malgo.BackendNull}, malgo.ContextConfig{}, nil)
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
