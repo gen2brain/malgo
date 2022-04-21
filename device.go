@@ -149,18 +149,18 @@ func goDataCallback(pDevice *C.ma_device, pOutput, pInput unsafe.Pointer, frameC
 	deviceMutex.Unlock()
 
 	if callback != nil {
-		inputSamples := []byte(nil)
-		outputSamples := []byte(nil)
+		var inputSamples, outputSamples []byte
+
 		if pOutput != nil {
 			sampleCount := uint32(frameCount) * uint32(pDevice.playback.channels)
 			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.playback.format))
-			outputSamples = (*[1 << 30]byte)(pOutput)[0 : sampleCount*sizeInBytes]
+			outputSamples = unsafe.Slice((*byte)(pOutput), sampleCount*sizeInBytes)
 		}
 
 		if pInput != nil {
 			sampleCount := uint32(frameCount) * uint32(pDevice.capture.channels)
 			sizeInBytes := uint32(C.ma_get_bytes_per_sample(pDevice.capture.format))
-			inputSamples = (*[1 << 30]byte)(pInput)[0 : sampleCount*sizeInBytes]
+			inputSamples = unsafe.Slice((*byte)(pInput), sampleCount*sizeInBytes)
 		}
 
 		callback(outputSamples, inputSamples, uint32(frameCount))
