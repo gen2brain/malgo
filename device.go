@@ -22,7 +22,10 @@ type DeviceCallbacks struct {
 }
 
 // Device represents a streaming instance.
-type Device uintptr
+type Device struct {
+	ptr    *unsafe.Pointer
+	config *C.ma_device_config
+}
 
 // InitDevice initializes a device.
 //
@@ -34,14 +37,22 @@ type Device uintptr
 //
 // The returned instance has to be cleaned up using Uninit().
 func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
-	dev := Device(C.ma_aligned_malloc(C.sizeof_ma_device, simdAlignment, nil))
-	if dev == 0 {
+	ptr := C.ma_aligned_malloc(C.sizeof_ma_device, simdAlignment, nil)
+	dev := Device{
+		ptr: &ptr,
+	}
+	if uintptr(*dev.ptr) == 0 {
 		return nil, ErrOutOfMemory
+	}
+	devConfig, err := deviceConfig.cptrClone()
+	if err != nil {
+		dev.free()
+		return nil, err
 	}
 
 	rawDevice := dev.cptr()
-	C.goSetDeviceConfigCallbacks(deviceConfig.cptr())
-	result := C.ma_device_init(context.cptr(), deviceConfig.cptr(), rawDevice)
+	C.goSetDeviceConfigCallbacks(devConfig)
+	result := C.ma_device_init(context.cptr(), devConfig, rawDevice)
 	if result != 0 {
 		dev.free()
 		return nil, errorFromResult(result)
@@ -55,11 +66,16 @@ func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks Devi
 }
 
 func (dev Device) cptr() *C.ma_device {
-	return (*C.ma_device)(unsafe.Pointer(dev))
+	return (*C.ma_device)(*dev.ptr)
 }
 
 func (dev Device) free() {
-	C.ma_aligned_free(unsafe.Pointer(dev), nil)
+	if dev.ptr != nil {
+		C.ma_aligned_free(*dev.ptr, nil)
+	}
+	if dev.config != nil {
+		C.ma_free(unsafe.Pointer(dev.config), nil)
+	}
 }
 
 // Type returns device type.

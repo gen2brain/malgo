@@ -27,7 +27,5 @@ func SampleSizeInBytes(format FormatType) int {
 }
 
 const (
-	rawContextConfigSize = C.sizeof_ma_context_config
-	rawDeviceInfoSize    = C.sizeof_ma_device_info
-	rawDeviceConfigSize  = C.sizeof_ma_device_config
+	rawDeviceInfoSize = C.sizeof_ma_device_info
 )

@@ -22,8 +22,6 @@ type PulseContextConfig struct {
 	PServerName      *byte
 	// Enables autospawning of the PulseAudio daemon if necessary.
 	TryAutoSpawn uint32
-	// Padding
-	_ [4]byte
 }
 
 // CoreAudioConfig type.
@@ -36,8 +34,6 @@ type CoreAudioConfig struct {
 type JackContextConfig struct {
 	PClientName    *byte
 	TryStartServer uint32
-	// Padding
-	_ [4]byte
 }
 
 // ContextConfig type.
@@ -52,8 +48,29 @@ type ContextConfig struct {
 	Jack                JackContextConfig
 }
 
-func (d *ContextConfig) cptr() *C.ma_context_config {
-	return (*C.ma_context_config)(unsafe.Pointer(d))
+// caller must ma_free
+func (d *ContextConfig) cptrClone() (*C.ma_context_config, error) {
+	ctxConfigPtr := C.ma_malloc(C.sizeof_ma_context_config, nil)
+	if uintptr(ctxConfigPtr) == uintptr(0) {
+		return nil, ErrOutOfMemory
+	}
+	ctxConfig := (*C.ma_context_config)(ctxConfigPtr)
+	ctxConfig.threadPriority = C.ma_thread_priority(d.ThreadPriority)
+	ctxConfig.pUserData = unsafe.Pointer(d.PUserData)
+	ctxConfig.allocationCallbacks.pUserData = unsafe.Pointer(d.AllocationCallbacks.PUserData)
+	ctxConfig.allocationCallbacks.onMalloc = d.AllocationCallbacks.OnMalloc
+	ctxConfig.allocationCallbacks.onRealloc = d.AllocationCallbacks.OnRealloc
+	ctxConfig.allocationCallbacks.onFree = d.AllocationCallbacks.OnFree
+	ctxConfig.alsa.useVerboseDeviceEnumeration = C.uint(d.Alsa.UseVerboseDeviceEnumeration)
+	ctxConfig.pulse.pApplicationName = (*C.char)(unsafe.Pointer((d.Pulse.PApplicationName)))
+	ctxConfig.pulse.pServerName = (*C.char)(unsafe.Pointer((d.Pulse.PServerName)))
+	ctxConfig.pulse.tryAutoSpawn = C.uint(d.Pulse.TryAutoSpawn)
+	ctxConfig.coreaudio.sessionCategory = C.ma_ios_session_category(d.CoreAudio.SessionCategory)
+	ctxConfig.coreaudio.sessionCategoryOptions = C.uint(d.CoreAudio.SessionCategoryOptions)
+	ctxConfig.jack.pClientName = (*C.char)(unsafe.Pointer((d.Jack.PClientName)))
+	ctxConfig.jack.tryStartServer = C.uint(d.Jack.TryStartServer)
+
+	return ctxConfig, nil
 }
 
 // AllocationCallbacks types.
@@ -65,14 +82,16 @@ type AllocationCallbacks struct {
 }
 
 // Context is used for selecting and initializing the relevant backends.
-type Context uintptr
+type Context struct {
+	ptr *unsafe.Pointer
+}
 
 // DefaultContext is an unspecified context. It can be used to initialize a streaming
 // function with implicit context defaults.
-const DefaultContext Context = 0
+var DefaultContext Context = Context{}
 
 func (ctx Context) cptr() *C.ma_context {
-	return (*C.ma_context)(unsafe.Pointer(ctx))
+	return (*C.ma_context)(*ctx.ptr)
 }
 
 // Uninit uninitializes a context.
@@ -106,10 +125,10 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 		deviceCount = int(captureDeviceCount)
 	}
 	info := make([]DeviceInfo, deviceCount)
-	deviceInfoAddr := uintptr(unsafe.Pointer(devices))
+	deviceInfoAddr := unsafe.Pointer(devices)
 	for i := 0; i < deviceCount; i++ {
-		info[i] = deviceInfoFromPointer(unsafe.Pointer(deviceInfoAddr))
-		deviceInfoAddr += rawDeviceInfoSize
+		info[i] = deviceInfoFromPointer(deviceInfoAddr)
+		deviceInfoAddr = unsafe.Add(deviceInfoAddr, rawDeviceInfoSize)
 	}
 
 	return info, nil
@@ -158,16 +177,25 @@ func goLogCallback(pContext *C.ma_context, pDevice *C.ma_device, message *C.char
 // It must be freed after use in order to release resources.
 type AllocatedContext struct {
 	Context
+	config *C.ma_context_config
 }
 
 // InitContext creates and initializes a context.
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
-	C.goSetContextConfigCallbacks(config.cptr())
-	ctx := AllocatedContext{
-		Context: Context(C.ma_malloc(C.sizeof_ma_context, nil)),
+	configPtr, err := config.cptrClone()
+	if err != nil {
+		return nil, err
 	}
-	if ctx.Context == 0 {
+
+	C.goSetContextConfigCallbacks(configPtr)
+	ptr := C.ma_malloc(C.sizeof_ma_context, nil)
+	ctx := AllocatedContext{
+		Context: Context{ptr: &ptr},
+		config:  configPtr,
+	}
+	if uintptr(*ctx.Context.ptr) == 0 {
+		ctx.Free()
 		return nil, ErrOutOfMemory
 	}
 	ctx.SetLogProc(logProc)
@@ -178,9 +206,8 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 		backendsArg = (*C.ma_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
 	}
 
-	result := C.ma_context_init(backendsArg, backendCountArg, config.cptr(), ctx.cptr())
-	err := errorFromResult(result)
-	if err != nil {
+	result := C.ma_context_init(backendsArg, backendCountArg, configPtr, ctx.cptr())
+	if err := errorFromResult(result); err != nil {
 		ctx.SetLogProc(nil)
 		ctx.Free()
 		return nil, err
@@ -191,10 +218,13 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 // Free must be called when the allocated data is no longer used.
 // This function must only be called for an uninitialized context.
 func (ctx *AllocatedContext) Free() {
-	if ctx.Context == 0 {
+	if ctx.config != nil {
+		C.ma_free(unsafe.Pointer(ctx.config), nil)
+	}
+	if ctx.Context.ptr == nil || uintptr(*ctx.Context.ptr) == 0 {
 		return
 	}
 	ctx.SetLogProc(nil)
 	C.ma_free(unsafe.Pointer(ctx.cptr()), nil)
-	ctx.Context = 0
+	ctx.Context.ptr = nil
 }

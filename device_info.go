@@ -40,10 +40,6 @@ type DeviceInfo struct {
 	MaxChannels   uint32
 	MinSampleRate uint32
 	MaxSampleRate uint32
-
-	_ uint32
-	_ [64]byte
-	_ [4]byte
 }
 
 // Name returns the name of the device.
@@ -61,5 +57,20 @@ func (d *DeviceInfo) String() string {
 }
 
 func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
-	return *(*DeviceInfo)(ptr)
+	device := (*C.ma_device_info)(ptr)
+	var newDevice DeviceInfo
+	newDevice.ID = DeviceID(device.id)
+	for i := 0; i < len(device.name); i++ {
+		newDevice.name[i] = (byte)(device.name[i])
+	}
+	newDevice.IsDefault = uint32(device.isDefault)
+	for i := 0; i < len(device.formats); i++ {
+		newDevice.Formats[i] = uint32(device.formats[i])
+	}
+	newDevice.FormatCount = uint32(device.formatCount)
+	newDevice.MinChannels = uint32(device.minChannels)
+	newDevice.MaxChannels = uint32(device.maxChannels)
+	newDevice.MinSampleRate = uint32(device.minSampleRate)
+	newDevice.MaxSampleRate = uint32(device.maxSampleRate)
+	return newDevice
 }

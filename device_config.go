@@ -31,8 +31,51 @@ func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	return *(*DeviceConfig)(unsafe.Pointer(&config))
 }
 
-func (d *DeviceConfig) cptr() *C.ma_device_config {
-	return (*C.ma_device_config)(unsafe.Pointer(d))
+// caller must ma_free
+func (d *DeviceConfig) cptrClone() (*C.ma_device_config, error) {
+	deviceConfigPtr := C.ma_malloc(C.sizeof_ma_device_config, nil)
+	if uintptr(deviceConfigPtr) == uintptr(0) {
+		return nil, ErrOutOfMemory
+	}
+	deviceConfig := (*C.ma_device_config)(deviceConfigPtr)
+
+	deviceConfig.deviceType = C.ma_device_type(d.DeviceType)
+	deviceConfig.sampleRate = C.uint(d.SampleRate)
+	deviceConfig.periodSizeInFrames = C.uint(d.PeriodSizeInFrames)
+	deviceConfig.periodSizeInMilliseconds = C.uint(d.PeriodSizeInMilliseconds)
+	deviceConfig.periods = C.uint(d.Periods)
+	deviceConfig.performanceProfile = C.ma_performance_profile(d.PerformanceProfile)
+	deviceConfig.noPreZeroedOutputBuffer = C.uchar(d.NoPreZeroedOutputBuffer)
+	deviceConfig.noClip = C.uchar(d.NoClip)
+	deviceConfig.dataCallback = d.DataCallback
+	deviceConfig.stopCallback = d.StopCallback
+	deviceConfig.pUserData = unsafe.Pointer(d.PUserData)
+	deviceConfig.resampling.algorithm = C.ma_resample_algorithm(d.Resampling.Algorithm)
+	deviceConfig.resampling.linear.lpfOrder = C.uint(d.Resampling.Linear.LpfOrder)
+	deviceConfig.resampling.speex.quality = C.int(d.Resampling.Speex.Quality)
+	convertSubConfig := func(to *C.struct___95, from SubConfig) {
+		to.pDeviceID = (*C.ma_device_id)(from.DeviceID)
+		to.format = C.ma_format(from.Format)
+		to.channels = C.uint(from.Channels)
+		for i := 0; i < len(to.channelMap); i++ {
+			to.channelMap[i] = (C.uchar)(from.ChannelMap[i])
+		}
+		to.shareMode = C.ma_share_mode(from.ShareMode)
+	}
+	convertSubConfig(&deviceConfig.playback, d.Playback)
+	convertSubConfig(&deviceConfig.capture, d.Capture)
+	deviceConfig.wasapi.noAutoConvertSRC = C.uchar(d.Wasapi.NoHardwareOffloading)
+	deviceConfig.wasapi.noDefaultQualitySRC = C.uchar(d.Wasapi.NoDefaultQualitySRC)
+	deviceConfig.wasapi.noAutoStreamRouting = C.uchar(d.Wasapi.NoAutoStreamRouting)
+	deviceConfig.wasapi.noHardwareOffloading = C.uchar(d.Wasapi.NoHardwareOffloading)
+	deviceConfig.alsa.noMMap = C.uint(d.Alsa.NoMMap)
+	deviceConfig.alsa.noAutoFormat = C.uint(d.Alsa.NoAutoFormat)
+	deviceConfig.alsa.noAutoChannels = C.uint(d.Alsa.NoAutoChannles)
+	deviceConfig.alsa.noAutoResample = C.uint(d.Alsa.NoAutoResample)
+	deviceConfig.pulse.pStreamNameCapture = (*C.char)(d.Pulse.StreamNameCapture)
+	deviceConfig.pulse.pStreamNamePlayback = (*C.char)(d.Pulse.StreamNamePlayback)
+
+	return deviceConfig, nil
 }
 
 // SubConfig type.
@@ -42,7 +85,6 @@ type SubConfig struct {
 	Channels   uint32
 	ChannelMap [C.MA_MAX_CHANNELS]uint8
 	ShareMode  ShareMode
-	_          [4]byte // cgo padding
 }
 
 // WasapiDeviceConfig type.
