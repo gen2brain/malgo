@@ -37,22 +37,19 @@ type Device struct {
 //
 // The returned instance has to be cleaned up using Uninit().
 func InitDevice(context Context, deviceConfig DeviceConfig, deviceCallbacks DeviceCallbacks) (*Device, error) {
-	ptr := C.ma_aligned_malloc(C.sizeof_ma_device, simdAlignment, nil)
+	ptr := C.ma_malloc(C.sizeof_ma_device, nil)
 	dev := Device{
 		ptr: &ptr,
 	}
 	if uintptr(*dev.ptr) == 0 {
 		return nil, ErrOutOfMemory
 	}
-	devConfig, err := deviceConfig.cptrClone()
-	if err != nil {
-		dev.free()
-		return nil, err
-	}
+	devConfigC, release := deviceConfig.toC()
+	defer release()
 
 	rawDevice := dev.cptr()
-	C.goSetDeviceConfigCallbacks(devConfig)
-	result := C.ma_device_init(context.cptr(), devConfig, rawDevice)
+	C.goSetDeviceConfigCallbacks(&devConfigC)
+	result := C.ma_device_init(context.cptr(), &devConfigC, rawDevice)
 	if result != 0 {
 		dev.free()
 		return nil, errorFromResult(result)
@@ -71,7 +68,7 @@ func (dev Device) cptr() *C.ma_device {
 
 func (dev Device) free() {
 	if dev.ptr != nil {
-		C.ma_aligned_free(*dev.ptr, nil)
+		C.ma_free(*dev.ptr, nil)
 	}
 	if dev.config != nil {
 		C.ma_free(unsafe.Pointer(dev.config), nil)

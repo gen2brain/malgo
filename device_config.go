@@ -2,7 +2,9 @@ package malgo
 
 // #include "malgo.h"
 import "C"
-import "unsafe"
+import (
+	"unsafe"
+)
 
 // DeviceConfig type.
 type DeviceConfig struct {
@@ -28,18 +30,64 @@ type DeviceConfig struct {
 // DefaultDeviceConfig returns a default device config.
 func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	config := C.ma_device_config_init(C.ma_device_type(deviceType))
-	return *(*DeviceConfig)(unsafe.Pointer(&config))
+
+	var deviceConfig DeviceConfig
+
+	deviceConfig.DeviceType = DeviceType(config.deviceType)
+	deviceConfig.SampleRate = uint32(config.sampleRate)
+	deviceConfig.PeriodSizeInFrames = uint32(config.periodSizeInFrames)
+	deviceConfig.PeriodSizeInMilliseconds = uint32(config.periodSizeInMilliseconds)
+	deviceConfig.Periods = uint32(config.periodSizeInFrames)
+	deviceConfig.PerformanceProfile = PerformanceProfile(config.performanceProfile)
+	deviceConfig.NoPreZeroedOutputBuffer = uint32(config.noPreZeroedOutputBuffer)
+	deviceConfig.NoClip = uint32(config.noClip)
+	deviceConfig.DataCallback = config.dataCallback
+	deviceConfig.StopCallback = config.stopCallback
+	deviceConfig.PUserData = (*byte)(config.pUserData)
+
+	deviceConfig.Resampling.Algorithm = ResampleAlgorithm(config.resampling.algorithm)
+	deviceConfig.Resampling.Linear.LpfOrder = uint32(config.resampling.linear.lpfOrder)
+	deviceConfig.Resampling.Speex.Quality = int(config.resampling.speex.quality)
+
+	deviceConfig.Playback.DeviceID = unsafe.Pointer(config.playback.pDeviceID)
+	deviceConfig.Playback.Format = FormatType(config.playback.format)
+	deviceConfig.Playback.Channels = uint32(config.playback.channels)
+	for i := 0; i < len(config.playback.channelMap); i++ {
+		deviceConfig.Playback.ChannelMap[i] = uint8(config.playback.channelMap[i])
+	}
+	deviceConfig.Playback.ShareMode = ShareMode(config.playback.shareMode)
+
+	deviceConfig.Capture.DeviceID = unsafe.Pointer(config.capture.pDeviceID)
+	deviceConfig.Capture.Format = FormatType(config.capture.format)
+	deviceConfig.Capture.Channels = uint32(config.capture.channels)
+	for i := 0; i < len(config.capture.channelMap); i++ {
+		deviceConfig.Capture.ChannelMap[i] = uint8(config.capture.channelMap[i])
+	}
+	deviceConfig.Capture.ShareMode = ShareMode(config.capture.shareMode)
+
+	deviceConfig.Wasapi.NoAutoConvertSRC = uint32(config.wasapi.noHardwareOffloading)
+	deviceConfig.Wasapi.NoDefaultQualitySRC = uint32(config.wasapi.noDefaultQualitySRC)
+	deviceConfig.Wasapi.NoAutoStreamRouting = uint32(config.wasapi.noAutoStreamRouting)
+	deviceConfig.Wasapi.NoHardwareOffloading = uint32(config.wasapi.noHardwareOffloading)
+
+	deviceConfig.Alsa.NoMMap = uint32(config.alsa.noMMap)
+	deviceConfig.Alsa.NoAutoFormat = uint32(config.alsa.noAutoFormat)
+	deviceConfig.Alsa.NoAutoChannels = uint32(config.alsa.noAutoChannels)
+	deviceConfig.Alsa.NoAutoResample = uint32(config.alsa.noAutoResample)
+
+	if config.pulse.pStreamNameCapture != nil {
+		deviceConfig.Pulse.StreamNameCapture = C.GoString(config.pulse.pStreamNameCapture)
+	}
+	if config.pulse.pStreamNamePlayback != nil {
+		deviceConfig.Pulse.StreamNamePlayback = C.GoString(config.pulse.pStreamNamePlayback)
+	}
+
+	return deviceConfig
 }
 
-// caller must ma_free
-func (d *DeviceConfig) cptrClone() (*C.ma_device_config, error) {
-	deviceConfigPtr := C.ma_malloc(C.sizeof_ma_device_config, nil)
-	if uintptr(deviceConfigPtr) == uintptr(0) {
-		return nil, ErrOutOfMemory
-	}
-	deviceConfig := (*C.ma_device_config)(deviceConfigPtr)
+func (d *DeviceConfig) toC() (C.ma_device_config, func()) {
+	deviceConfig := C.ma_device_config_init(C.ma_device_type(d.DeviceType))
 
-	deviceConfig.deviceType = C.ma_device_type(d.DeviceType)
 	deviceConfig.sampleRate = C.uint(d.SampleRate)
 	deviceConfig.periodSizeInFrames = C.uint(d.PeriodSizeInFrames)
 	deviceConfig.periodSizeInMilliseconds = C.uint(d.PeriodSizeInMilliseconds)
@@ -78,19 +126,30 @@ func (d *DeviceConfig) cptrClone() (*C.ma_device_config, error) {
 
 	deviceConfig.alsa.noMMap = C.uint(d.Alsa.NoMMap)
 	deviceConfig.alsa.noAutoFormat = C.uint(d.Alsa.NoAutoFormat)
-	deviceConfig.alsa.noAutoChannels = C.uint(d.Alsa.NoAutoChannles)
+	deviceConfig.alsa.noAutoChannels = C.uint(d.Alsa.NoAutoChannels)
 	deviceConfig.alsa.noAutoResample = C.uint(d.Alsa.NoAutoResample)
 
-	if d.Pulse.StreamNameCapture != nil {
-		streamNameCaptureCopy := (C.char)(*d.Pulse.StreamNameCapture)
-		deviceConfig.pulse.pStreamNameCapture = &streamNameCaptureCopy
+	var releasers []func()
+	if d.Pulse.StreamNameCapture != "" {
+		streamNameCapturePtr := C.CString(d.Pulse.StreamNameCapture)
+		deviceConfig.pulse.pStreamNameCapture = streamNameCapturePtr
+		releasers = append(releasers, func() {
+			C.ma_free(unsafe.Pointer(streamNameCapturePtr), nil)
+		})
 	}
-	if d.Pulse.StreamNamePlayback != nil {
-		streamNamePlaybackCopy := (C.char)(*d.Pulse.StreamNamePlayback)
-		deviceConfig.pulse.pStreamNamePlayback = &streamNamePlaybackCopy
+	if d.Pulse.StreamNamePlayback != "" {
+		streamNamePlaybackPtr := C.CString(d.Pulse.StreamNamePlayback)
+		deviceConfig.pulse.pStreamNamePlayback = streamNamePlaybackPtr
+		releasers = append(releasers, func() {
+			C.ma_free(unsafe.Pointer(streamNamePlaybackPtr), nil)
+		})
 	}
 
-	return deviceConfig, nil
+	return deviceConfig, func() {
+		for _, release := range releasers {
+			defer release()
+		}
+	}
 }
 
 // SubConfig type.
@@ -114,14 +173,14 @@ type WasapiDeviceConfig struct {
 type AlsaDeviceConfig struct {
 	NoMMap         uint32
 	NoAutoFormat   uint32
-	NoAutoChannles uint32
+	NoAutoChannels uint32
 	NoAutoResample uint32
 }
 
 // PulseDeviceConfig type.
 type PulseDeviceConfig struct {
-	StreamNamePlayback *int8
-	StreamNameCapture  *int8
+	StreamNamePlayback string
+	StreamNameCapture  string
 }
 
 // ResampleConfig type.

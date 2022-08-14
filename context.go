@@ -48,13 +48,8 @@ type ContextConfig struct {
 	Jack                JackContextConfig
 }
 
-// caller must ma_free
-func (d *ContextConfig) cptrClone() (*C.ma_context_config, error) {
-	ctxConfigPtr := C.ma_malloc(C.sizeof_ma_context_config, nil)
-	if uintptr(ctxConfigPtr) == uintptr(0) {
-		return nil, ErrOutOfMemory
-	}
-	ctxConfig := (*C.ma_context_config)(ctxConfigPtr)
+func (d *ContextConfig) toC() (C.ma_context_config, error) {
+	ctxConfig := C.ma_context_config_init()
 	ctxConfig.threadPriority = C.ma_thread_priority(d.ThreadPriority)
 	ctxConfig.pUserData = unsafe.Pointer(d.PUserData)
 	ctxConfig.allocationCallbacks.pUserData = unsafe.Pointer(d.AllocationCallbacks.PUserData)
@@ -183,16 +178,15 @@ type AllocatedContext struct {
 // InitContext creates and initializes a context.
 // When the application no longer needs the context instance, it needs to call Free() .
 func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*AllocatedContext, error) {
-	configPtr, err := config.cptrClone()
+	configC, err := config.toC()
 	if err != nil {
 		return nil, err
 	}
 
-	C.goSetContextConfigCallbacks(configPtr)
+	C.goSetContextConfigCallbacks(&configC)
 	ptr := C.ma_malloc(C.sizeof_ma_context, nil)
 	ctx := AllocatedContext{
 		Context: Context{ptr: &ptr},
-		config:  configPtr,
 	}
 	if uintptr(*ctx.Context.ptr) == 0 {
 		ctx.Free()
@@ -206,7 +200,7 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 		backendsArg = (*C.ma_backend)(unsafe.Pointer((*reflect.SliceHeader)(unsafe.Pointer(&backends)).Data))
 	}
 
-	result := C.ma_context_init(backendsArg, backendCountArg, configPtr, ctx.cptr())
+	result := C.ma_context_init(backendsArg, backendCountArg, &configC, ctx.cptr())
 	if err := errorFromResult(result); err != nil {
 		ctx.SetLogProc(nil)
 		ctx.Free()
@@ -218,9 +212,6 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 // Free must be called when the allocated data is no longer used.
 // This function must only be called for an uninitialized context.
 func (ctx *AllocatedContext) Free() {
-	if ctx.config != nil {
-		C.ma_free(unsafe.Pointer(ctx.config), nil)
-	}
 	if ctx.Context.ptr == nil || uintptr(*ctx.Context.ptr) == 0 {
 		return
 	}
