@@ -23,8 +23,7 @@ type DeviceCallbacks struct {
 
 // Device represents a streaming instance.
 type Device struct {
-	ptr    *unsafe.Pointer
-	config *C.ma_device_config
+	ptr *unsafe.Pointer
 }
 
 // InitDevice initializes a device.
@@ -69,9 +68,6 @@ func (dev Device) cptr() *C.ma_device {
 func (dev Device) free() {
 	if dev.ptr != nil {
 		C.ma_free(*dev.ptr, nil)
-	}
-	if dev.config != nil {
-		C.ma_free(unsafe.Pointer(dev.config), nil)
 	}
 }
 
