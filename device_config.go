@@ -81,8 +81,14 @@ func (d *DeviceConfig) cptrClone() (*C.ma_device_config, error) {
 	deviceConfig.alsa.noAutoChannels = C.uint(d.Alsa.NoAutoChannles)
 	deviceConfig.alsa.noAutoResample = C.uint(d.Alsa.NoAutoResample)
 
-	deviceConfig.pulse.pStreamNameCapture = (*C.char)(d.Pulse.StreamNameCapture)
-	deviceConfig.pulse.pStreamNamePlayback = (*C.char)(d.Pulse.StreamNamePlayback)
+	if d.Pulse.StreamNameCapture != nil {
+		streamNameCaptureCopy := (C.char)(*d.Pulse.StreamNameCapture)
+		deviceConfig.pulse.pStreamNameCapture = &streamNameCaptureCopy
+	}
+	if d.Pulse.StreamNamePlayback != nil {
+		streamNamePlaybackCopy := (C.char)(*d.Pulse.StreamNamePlayback)
+		deviceConfig.pulse.pStreamNamePlayback = &streamNamePlaybackCopy
+	}
 
 	return deviceConfig, nil
 }
