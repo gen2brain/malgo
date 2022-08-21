@@ -37,7 +37,7 @@ func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	deviceConfig.SampleRate = uint32(config.sampleRate)
 	deviceConfig.PeriodSizeInFrames = uint32(config.periodSizeInFrames)
 	deviceConfig.PeriodSizeInMilliseconds = uint32(config.periodSizeInMilliseconds)
-	deviceConfig.Periods = uint32(config.periodSizeInFrames)
+	deviceConfig.Periods = uint32(config.periods)
 	deviceConfig.PerformanceProfile = PerformanceProfile(config.performanceProfile)
 	deviceConfig.NoPreZeroedOutputBuffer = uint32(config.noPreZeroedOutputBuffer)
 	deviceConfig.NoClip = uint32(config.noClip)
