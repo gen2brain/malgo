@@ -1,6 +1,5 @@
 package malgo
 
-
 // Backend type.
 type Backend uint32
 
@@ -79,6 +78,7 @@ const (
 
 	ThreadPriorityDefault ThreadPriority = 0
 )
+
 // ResampleAlgorithm type.
 type ResampleAlgorithm uint32
 
