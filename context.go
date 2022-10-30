@@ -133,7 +133,7 @@ func (ctx Context) Devices(kind DeviceType) ([]DeviceInfo, error) {
 func (ctx Context) DeviceInfo(kind DeviceType, id DeviceID, mode ShareMode) (DeviceInfo, error) {
 	var info C.ma_device_info
 
-	result := C.ma_context_get_device_info(ctx.cptr(), C.ma_device_type(kind), id.cptr(), C.ma_share_mode(mode), &info)
+	result := C.ma_context_get_device_info(ctx.cptr(), C.ma_device_type(kind), id.cptr(), &info)
 	err := errorFromResult(result)
 	if err != nil {
 		return DeviceInfo{}, err
@@ -158,7 +158,7 @@ func (ctx Context) SetLogProc(proc LogProc) {
 }
 
 //export goLogCallback
-func goLogCallback(pContext *C.ma_context, pDevice *C.ma_device, message *C.char) {
+func goLogCallback(pContext *C.ma_context, message *C.char) {
 	contextMutex.Lock()
 	callback := logProcMap[pContext]
 	contextMutex.Unlock()
@@ -183,7 +183,6 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 		return nil, err
 	}
 
-	C.goSetContextConfigCallbacks(&configC)
 	ptr := C.ma_malloc(C.sizeof_ma_context, nil)
 	ctx := AllocatedContext{
 		Context: Context{ptr: &ptr},
@@ -192,6 +191,8 @@ func InitContext(backends []Backend, config ContextConfig, logProc LogProc) (*Al
 		ctx.Free()
 		return nil, ErrOutOfMemory
 	}
+
+	C.goSetContextConfigCallbacks(&configC, ctx.cptr())
 	ctx.SetLogProc(logProc)
 
 	var backendsArg *C.ma_backend
