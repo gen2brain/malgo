@@ -35,7 +35,7 @@ var (
 	ErrNotDirectory               = Result(C.MA_NOT_DIRECTORY)
 	ErrIsDirectory                = Result(C.MA_IS_DIRECTORY)
 	ErrDirectoryNotEmpty          = Result(C.MA_DIRECTORY_NOT_EMPTY)
-	ErrEndOfFile                  = Result(C.MA_END_OF_FILE)
+	ErrAtEnd                      = Result(C.MA_AT_END)
 	ErrNoSpace                    = Result(C.MA_NO_SPACE)
 	ErrBusy                       = Result(C.MA_BUSY)
 	ErrIO                         = Result(C.MA_IO_ERROR)
@@ -71,7 +71,6 @@ var (
 	ErrInProgress                 = Result(C.MA_IN_PROGRESS)
 	ErrCancelled                  = Result(C.MA_CANCELLED)
 	ErrMemoryAlreadyMapped        = Result(C.MA_MEMORY_ALREADY_MAPPED)
-	ErrAtEnd                      = Result(C.MA_AT_END)
 
 	// General miniaudio-specific errors.
 	ErrFormatNotSupported     = Result(C.MA_FORMAT_NOT_SUPPORTED)
@@ -81,6 +80,7 @@ var (
 	ErrNoDevice               = Result(C.MA_NO_DEVICE)
 	ErrAPINotFound            = Result(C.MA_API_NOT_FOUND)
 	ErrInvalidDeviceConfig    = Result(C.MA_INVALID_DEVICE_CONFIG)
+	ErrLoop                   = Result(C.MA_LOOP)
 
 	// State errors.
 

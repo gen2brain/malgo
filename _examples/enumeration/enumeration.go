@@ -32,8 +32,8 @@ func main() {
 		if err != nil {
 			e = err.Error()
 		}
-		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
-			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
+		fmt.Printf("    %d: %v, %s, [%s], formats: %+v\n",
+			i, info.ID, info.Name(), e, full.Formats)
 	}
 
 	fmt.Println()
@@ -52,7 +52,7 @@ func main() {
 		if err != nil {
 			e = err.Error()
 		}
-		fmt.Printf("    %d: %v, %s, [%s], channels: %d-%d, samplerate: %d-%d\n",
-			i, info.ID, info.Name(), e, full.MinChannels, full.MaxChannels, full.MinSampleRate, full.MaxSampleRate)
+		fmt.Printf("    %d: %v, %s, [%s], formats: %+v\n",
+			i, info.ID, info.Name(), e, full.Formats)
 	}
 }

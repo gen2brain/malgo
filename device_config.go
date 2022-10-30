@@ -8,23 +8,27 @@ import (
 
 // DeviceConfig type.
 type DeviceConfig struct {
-	DeviceType               DeviceType
-	SampleRate               uint32
-	PeriodSizeInFrames       uint32
-	PeriodSizeInMilliseconds uint32
-	Periods                  uint32
-	PerformanceProfile       PerformanceProfile
-	NoPreZeroedOutputBuffer  uint32
-	NoClip                   uint32
-	DataCallback             *[0]byte
-	StopCallback             *[0]byte
-	PUserData                *byte
-	Resampling               ResampleConfig
-	Playback                 SubConfig
-	Capture                  SubConfig
-	Wasapi                   WasapiDeviceConfig
-	Alsa                     AlsaDeviceConfig
-	Pulse                    PulseDeviceConfig
+	DeviceType                DeviceType
+	SampleRate                uint32
+	PeriodSizeInFrames        uint32
+	PeriodSizeInMilliseconds  uint32
+	Periods                   uint32
+	PerformanceProfile        PerformanceProfile
+	NoPreSilencedOutputBuffer uint32
+	NoClip                    uint32
+	NoDisableDenormals        uint32
+	NoFixedSizedCallback      uint32
+	DataCallback              *[0]byte
+	NotificationCallback      *[0]byte
+	StopCallback              *[0]byte
+	PUserData                 *byte
+	Resampling                ResampleConfig
+	Playback                  SubConfig
+	Capture                   SubConfig
+	Wasapi                    WasapiDeviceConfig
+	Alsa                      AlsaDeviceConfig
+	Pulse                     PulseDeviceConfig
+	// TODO: Add support for coreaudio, opensl, aaudio
 }
 
 // DefaultDeviceConfig returns a default device config.
@@ -39,30 +43,28 @@ func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	deviceConfig.PeriodSizeInMilliseconds = uint32(config.periodSizeInMilliseconds)
 	deviceConfig.Periods = uint32(config.periods)
 	deviceConfig.PerformanceProfile = PerformanceProfile(config.performanceProfile)
-	deviceConfig.NoPreZeroedOutputBuffer = uint32(config.noPreZeroedOutputBuffer)
+	deviceConfig.NoPreSilencedOutputBuffer = uint32(config.noPreSilencedOutputBuffer)
 	deviceConfig.NoClip = uint32(config.noClip)
+	deviceConfig.NoDisableDenormals = uint32(config.noDisableDenormals)
+	deviceConfig.NoFixedSizedCallback = uint32(config.noFixedSizedCallback)
 	deviceConfig.DataCallback = config.dataCallback
+	deviceConfig.NotificationCallback = config.notificationCallback
 	deviceConfig.StopCallback = config.stopCallback
 	deviceConfig.PUserData = (*byte)(config.pUserData)
 
 	deviceConfig.Resampling.Algorithm = ResampleAlgorithm(config.resampling.algorithm)
 	deviceConfig.Resampling.Linear.LpfOrder = uint32(config.resampling.linear.lpfOrder)
-	deviceConfig.Resampling.Speex.Quality = int(config.resampling.speex.quality)
 
 	deviceConfig.Playback.DeviceID = unsafe.Pointer(config.playback.pDeviceID)
 	deviceConfig.Playback.Format = FormatType(config.playback.format)
 	deviceConfig.Playback.Channels = uint32(config.playback.channels)
-	for i := 0; i < len(config.playback.channelMap); i++ {
-		deviceConfig.Playback.ChannelMap[i] = uint8(config.playback.channelMap[i])
-	}
+	deviceConfig.Playback.ChannelMap = unsafe.Pointer(config.playback.pChannelMap)
 	deviceConfig.Playback.ShareMode = ShareMode(config.playback.shareMode)
 
 	deviceConfig.Capture.DeviceID = unsafe.Pointer(config.capture.pDeviceID)
 	deviceConfig.Capture.Format = FormatType(config.capture.format)
 	deviceConfig.Capture.Channels = uint32(config.capture.channels)
-	for i := 0; i < len(config.capture.channelMap); i++ {
-		deviceConfig.Capture.ChannelMap[i] = uint8(config.capture.channelMap[i])
-	}
+	deviceConfig.Capture.ChannelMap = unsafe.Pointer(config.capture.pChannelMap)
 	deviceConfig.Capture.ShareMode = ShareMode(config.capture.shareMode)
 
 	deviceConfig.Wasapi.NoAutoConvertSRC = uint32(config.wasapi.noHardwareOffloading)
@@ -93,30 +95,29 @@ func (d *DeviceConfig) toC() (C.ma_device_config, func()) {
 	deviceConfig.periodSizeInMilliseconds = C.uint(d.PeriodSizeInMilliseconds)
 	deviceConfig.periods = C.uint(d.Periods)
 	deviceConfig.performanceProfile = C.ma_performance_profile(d.PerformanceProfile)
-	deviceConfig.noPreZeroedOutputBuffer = C.uchar(d.NoPreZeroedOutputBuffer)
+	deviceConfig.noPreSilencedOutputBuffer = C.uchar(d.NoPreSilencedOutputBuffer)
 	deviceConfig.noClip = C.uchar(d.NoClip)
+	deviceConfig.noDisableDenormals = C.uchar(d.NoDisableDenormals)
+	deviceConfig.noFixedSizedCallback = C.uchar(d.NoFixedSizedCallback)
+
 	deviceConfig.dataCallback = d.DataCallback
+	deviceConfig.notificationCallback = d.NotificationCallback
 	deviceConfig.stopCallback = d.StopCallback
 	deviceConfig.pUserData = unsafe.Pointer(d.PUserData)
 
 	deviceConfig.resampling.algorithm = C.ma_resample_algorithm(d.Resampling.Algorithm)
 	deviceConfig.resampling.linear.lpfOrder = C.uint(d.Resampling.Linear.LpfOrder)
-	deviceConfig.resampling.speex.quality = C.int(d.Resampling.Speex.Quality)
 
 	deviceConfig.playback.pDeviceID = (*C.ma_device_id)(d.Playback.DeviceID)
 	deviceConfig.playback.format = C.ma_format(d.Playback.Format)
 	deviceConfig.playback.channels = C.uint(d.Playback.Channels)
-	for i := 0; i < len(deviceConfig.playback.channelMap); i++ {
-		deviceConfig.playback.channelMap[i] = (C.uchar)(d.Playback.ChannelMap[i])
-	}
+	deviceConfig.playback.pChannelMap = (*C.ma_channel)(d.Playback.ChannelMap)
 	deviceConfig.playback.shareMode = C.ma_share_mode(d.Playback.ShareMode)
 
 	deviceConfig.capture.pDeviceID = (*C.ma_device_id)(d.Capture.DeviceID)
 	deviceConfig.capture.format = C.ma_format(d.Capture.Format)
 	deviceConfig.capture.channels = C.uint(d.Capture.Channels)
-	for i := 0; i < len(deviceConfig.capture.channelMap); i++ {
-		deviceConfig.capture.channelMap[i] = (C.uchar)(d.Capture.ChannelMap[i])
-	}
+	deviceConfig.capture.pChannelMap = (*C.ma_channel)(d.Capture.ChannelMap)
 	deviceConfig.capture.shareMode = C.ma_share_mode(d.Capture.ShareMode)
 
 	deviceConfig.wasapi.noAutoConvertSRC = C.uchar(d.Wasapi.NoHardwareOffloading)
@@ -157,8 +158,10 @@ type SubConfig struct {
 	DeviceID   unsafe.Pointer
 	Format     FormatType
 	Channels   uint32
-	ChannelMap [C.MA_MAX_CHANNELS]uint8
+	ChannelMap unsafe.Pointer
 	ShareMode  ShareMode
+
+	// Unexposed: channelMixMode, calculateLFEFromSpatialChannels
 }
 
 // WasapiDeviceConfig type.
@@ -187,7 +190,8 @@ type PulseDeviceConfig struct {
 type ResampleConfig struct {
 	Algorithm ResampleAlgorithm
 	Linear    ResampleLinearConfig
-	Speex     ResampleSpeexConfig
+
+	// Unexposed: format, channels, sampleRateIn, sampleRateOut, pBackendVTable, pBackendUserData
 }
 
 // ResampleLinearConfig type.

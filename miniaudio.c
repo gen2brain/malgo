@@ -3,13 +3,17 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
-static void goLogCallbackWrapper(ma_context *pContext, ma_device *pDevice, 
-                                 ma_uint32 logLevel, const char *message) {
-    goLogCallback(pContext, pDevice, (char *)message);
+static void goLogCallbackWrapper(void* pUserData, ma_uint32 logLevel, const char *message) {
+    goLogCallback((ma_context*) pUserData, (char *)message);
 }
 
-void goSetContextConfigCallbacks(ma_context_config* pConfig) {
-    pConfig->logCallback = goLogCallbackWrapper;
+// Note that the context in the argument has not been initialized here. We will only use the pointer as pUserData
+// so that we could easily identify which context a log callback belongs to.
+void goSetContextConfigCallbacks(ma_context_config* pConfig, ma_context* pContext) {
+    ma_log* log = malloc(sizeof(ma_log));
+    ma_log_init(NULL, log); // TODO: Set allocation callback?
+    ma_log_register_callback(log, ma_log_callback_init(goLogCallbackWrapper, (void*)pContext));
+    pConfig->pLog = log;
 }
 
 static void goDataCallbackWrapper(ma_device *pDevice,

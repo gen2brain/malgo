@@ -31,15 +31,12 @@ func (d *DeviceID) cptr() *C.ma_device_id {
 
 // DeviceInfo type.
 type DeviceInfo struct {
-	ID            DeviceID
-	name          [256]byte
-	IsDefault     uint32
-	FormatCount   uint32
-	Formats       [6]uint32
-	MinChannels   uint32
-	MaxChannels   uint32
-	MinSampleRate uint32
-	MaxSampleRate uint32
+	ID          DeviceID
+	name        [256]byte
+	IsDefault   uint32
+	FormatCount uint32
+	Formats     []DataFormat
+	MinChannels uint32
 }
 
 // Name returns the name of the device.
@@ -64,13 +61,22 @@ func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 		newDevice.name[i] = (byte)(device.name[i])
 	}
 	newDevice.IsDefault = uint32(device.isDefault)
-	for i := 0; i < len(device.formats); i++ {
-		newDevice.Formats[i] = uint32(device.formats[i])
+	newDevice.FormatCount = uint32(device.nativeDataFormatCount)
+	newDevice.Formats = make([]DataFormat, newDevice.FormatCount)
+	for i := 0; i < int(newDevice.FormatCount); i++ {
+		newDevice.Formats[i] = DataFormat{
+			Format:     FormatType(device.nativeDataFormats[i].format),
+			Channels:   uint32(device.nativeDataFormats[i].channels),
+			SampleRate: uint32(device.nativeDataFormats[i].sampleRate),
+			Flags:      uint32(device.nativeDataFormats[i].flags),
+		}
 	}
-	newDevice.FormatCount = uint32(device.formatCount)
-	newDevice.MinChannels = uint32(device.minChannels)
-	newDevice.MaxChannels = uint32(device.maxChannels)
-	newDevice.MinSampleRate = uint32(device.minSampleRate)
-	newDevice.MaxSampleRate = uint32(device.maxSampleRate)
 	return newDevice
+}
+
+type DataFormat struct {
+	Format     FormatType
+	Channels   uint32
+	SampleRate uint32
+	Flags      uint32
 }
