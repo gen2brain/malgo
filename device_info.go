@@ -36,7 +36,6 @@ type DeviceInfo struct {
 	IsDefault   uint32
 	FormatCount uint32
 	Formats     []DataFormat
-	MinChannels uint32
 }
 
 // Name returns the name of the device.
