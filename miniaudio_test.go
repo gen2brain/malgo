@@ -140,8 +140,8 @@ func TestErrors(t *testing.T) {
 	}
 
 	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
-	deviceConfig.Playback.Format = malgo.FormatType(99)
-	deviceConfig.Playback.Channels = 99
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = 255
 	deviceConfig.SampleRate = 44100
 
 	_, err = malgo.InitDevice(ctx.Context, deviceConfig, malgo.DeviceCallbacks{})
@@ -166,8 +166,8 @@ func TestErrors(t *testing.T) {
 	}
 
 	err = dev.Start()
-	if err == nil {
-		t.Fatalf("device start but already started")
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -178,8 +178,8 @@ func TestErrors(t *testing.T) {
 	}
 
 	err = dev.Stop()
-	if err == nil {
-		t.Fatalf("device stop but already stopped")
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	dev.Uninit()
