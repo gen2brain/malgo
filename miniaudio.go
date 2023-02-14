@@ -6,6 +6,7 @@ package malgo
 #cgo ma_debug CFLAGS: -DMA_DEBUG_OUTPUT=1
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
+#cgo linux,arm LDFLAGS: -latomic
 #cgo openbsd LDFLAGS: -ldl -lpthread -lm
 #cgo netbsd LDFLAGS: -ldl -lpthread -lm
 #cgo freebsd LDFLAGS: -ldl -lpthread -lm
