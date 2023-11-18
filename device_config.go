@@ -67,7 +67,7 @@ func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	deviceConfig.Capture.ChannelMap = unsafe.Pointer(config.capture.pChannelMap)
 	deviceConfig.Capture.ShareMode = ShareMode(config.capture.shareMode)
 
-	deviceConfig.Wasapi.NoAutoConvertSRC = uint32(config.wasapi.noHardwareOffloading)
+	deviceConfig.Wasapi.NoAutoConvertSRC = uint32(config.wasapi.noAutoConvertSRC)
 	deviceConfig.Wasapi.NoDefaultQualitySRC = uint32(config.wasapi.noDefaultQualitySRC)
 	deviceConfig.Wasapi.NoAutoStreamRouting = uint32(config.wasapi.noAutoStreamRouting)
 	deviceConfig.Wasapi.NoHardwareOffloading = uint32(config.wasapi.noHardwareOffloading)
@@ -120,7 +120,7 @@ func (d *DeviceConfig) toC() (C.ma_device_config, func()) {
 	deviceConfig.capture.pChannelMap = (*C.ma_channel)(d.Capture.ChannelMap)
 	deviceConfig.capture.shareMode = C.ma_share_mode(d.Capture.ShareMode)
 
-	deviceConfig.wasapi.noAutoConvertSRC = C.uchar(d.Wasapi.NoHardwareOffloading)
+	deviceConfig.wasapi.noAutoConvertSRC = C.uchar(d.Wasapi.NoAutoConvertSRC)
 	deviceConfig.wasapi.noDefaultQualitySRC = C.uchar(d.Wasapi.NoDefaultQualitySRC)
 	deviceConfig.wasapi.noAutoStreamRouting = C.uchar(d.Wasapi.NoAutoStreamRouting)
 	deviceConfig.wasapi.noHardwareOffloading = C.uchar(d.Wasapi.NoHardwareOffloading)
