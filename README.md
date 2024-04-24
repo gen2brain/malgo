@@ -21,5 +21,5 @@ Documentation on [GoDoc](https://godoc.org/github.com/gen2brain/malgo). Also che
 * Windows (WASAPI, DirectSound, WinMM)
 * Linux (PulseAudio, ALSA, JACK)
 * FreeBSD/NetBSD/OpenBSD (OSS/audio(4)/sndio)
-* macOS (CoreAudio)
+* macOS/iOS (CoreAudio)
 * Android (OpenSL|ES, AAudio)
