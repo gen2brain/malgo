@@ -7,7 +7,7 @@ package malgo
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
 #cgo linux,arm LDFLAGS: -latomic
-#cgo openbsd LDFLAGS: -ldl -lpthread -lm
+#cgo openbsd LDFLAGS: -lpthread -lm
 #cgo netbsd LDFLAGS: -ldl -lpthread -lm
 #cgo freebsd LDFLAGS: -ldl -lpthread -lm
 #cgo android LDFLAGS: -lm
