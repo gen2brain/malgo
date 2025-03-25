@@ -86,6 +86,7 @@ type ResampleAlgorithm uint32
 const (
 	ResampleAlgorithmLinear ResampleAlgorithm = 0
 	ResampleAlgorithmSpeex  ResampleAlgorithm = 1
+	ResampleAlgorithmCustom                   = ResampleAlgorithmSpeex
 )
 
 // IOSSessionCategory type.
@@ -115,4 +116,25 @@ const (
 	IOSSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers = 0x11 // AVAudioSessionCategoryOptionInterruptSpokenAudioAndMixWithOthers
 	IOSSessionCategoryOptionAllowBluetoothA2dp                   = 0x20 // AVAudioSessionCategoryOptionAllowBluetoothA2DP
 	IOSSessionCategoryOptionAllowAirPlay                         = 0x40 // AVAudioSessionCategoryOptionAllowAirPlay
+)
+
+// DitherModeType type.
+type DitherModeType uint32
+
+// DitherModeType enumeration.
+const (
+	DitherModeNone DitherModeType = iota
+	DitherModeRectangle
+	DitherModeTriangle
+)
+
+// ChannelMixModeType type.
+type ChannelMixModeType uint32
+
+// ChannelMixModeType enumeration.
+const (
+	ChannelMixModeRectangular ChannelMixModeType = iota
+	ChannelMixModeSimple
+	ChannelMixModeCustomWeights
+	ChannelMixModeDefault = ChannelMixModeRectangular
 )

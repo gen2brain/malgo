@@ -29,6 +29,11 @@ func SampleSizeInBytes(format FormatType) int {
 	return int(ret)
 }
 
+// FrameSizeInBytes retrieves the size of a frame in bytes for the given format.
+func FrameSizeInBytes(format FormatType, channels int) int {
+	return SampleSizeInBytes(format) * channels
+}
+
 const (
 	rawDeviceInfoSize = C.sizeof_ma_device_info
 )
