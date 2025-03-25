@@ -58,7 +58,7 @@ func deviceInfoFromPointer(ptr unsafe.Pointer) DeviceInfo {
 	var newDevice DeviceInfo
 	newDevice.ID = DeviceID(device.id)
 	newDevice.Name = C.GoString(&device.name[0])
-	newDevice.IsDefault = device.isDefault == True
+	newDevice.IsDefault = device.isDefault == 1 // ma_true == 1
 	newDevice.FormatCount = int(device.nativeDataFormatCount)
 	newDevice.Formats = make([]DataFormat, newDevice.FormatCount)
 	for i := 0; i < int(newDevice.FormatCount); i++ {
