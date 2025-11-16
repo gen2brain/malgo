@@ -28,6 +28,7 @@ type DeviceConfig struct {
 	Wasapi                    WasapiDeviceConfig
 	Alsa                      AlsaDeviceConfig
 	Pulse                     PulseDeviceConfig
+	AAudio                    AAudioDeviceConfig
 	// TODO: Add support for coreaudio, opensl, aaudio
 }
 
@@ -83,6 +84,13 @@ func DefaultDeviceConfig(deviceType DeviceType) DeviceConfig {
 	if config.pulse.pStreamNamePlayback != nil {
 		deviceConfig.Pulse.StreamNamePlayback = C.GoString(config.pulse.pStreamNamePlayback)
 	}
+
+	deviceConfig.AAudio.Usage = AAudioUsage(config.aaudio.usage)
+	deviceConfig.AAudio.ContentType = AAudioContentType(config.aaudio.contentType)
+	deviceConfig.AAudio.InputPreset = AAudioInputPreset(config.aaudio.inputPreset)
+	deviceConfig.AAudio.AllowedCapturePolicy = AAudioAllowedCapturePolicy(config.aaudio.allowedCapturePolicy)
+	deviceConfig.AAudio.NoAutoStartAfterReroute = uint32(config.aaudio.noAutoStartAfterReroute)
+	deviceConfig.AAudio.EnableCompatibilityWorkarounds = uint32(config.aaudio.enableCompatibilityWorkarounds)
 
 	return deviceConfig
 }
@@ -146,6 +154,13 @@ func (d *DeviceConfig) toC() (C.ma_device_config, func()) {
 		})
 	}
 
+	deviceConfig.aaudio.usage = C.ma_aaudio_usage(d.AAudio.Usage)
+	deviceConfig.aaudio.contentType = C.ma_aaudio_content_type(d.AAudio.ContentType)
+	deviceConfig.aaudio.inputPreset = C.ma_aaudio_input_preset(d.AAudio.InputPreset)
+	deviceConfig.aaudio.allowedCapturePolicy = C.ma_aaudio_allowed_capture_policy(d.AAudio.AllowedCapturePolicy)
+	deviceConfig.aaudio.noAutoStartAfterReroute = C.ma_bool32(d.AAudio.NoAutoStartAfterReroute)
+	deviceConfig.aaudio.enableCompatibilityWorkarounds = C.ma_bool32(d.AAudio.EnableCompatibilityWorkarounds)
+
 	return deviceConfig, func() {
 		for _, release := range releasers {
 			defer release()
@@ -202,4 +217,14 @@ type ResampleLinearConfig struct {
 // ResampleSpeexConfig type.
 type ResampleSpeexConfig struct {
 	Quality int
+}
+
+// AAudioDeviceConfig type.
+type AAudioDeviceConfig struct {
+	Usage                          AAudioUsage
+	ContentType                    AAudioContentType
+	InputPreset                    AAudioInputPreset
+	AllowedCapturePolicy           AAudioAllowedCapturePolicy
+	NoAutoStartAfterReroute        uint32
+	EnableCompatibilityWorkarounds uint32
 }

@@ -150,3 +150,63 @@ func (f DataFormatFlag) List() []string {
 	}
 	return active
 }
+// AAudioUsage type.
+type AAudioUsage uint32
+
+// AAudioUsages enumeration.
+const (
+	AAudioUsageDefault AAudioUsage = iota
+	AAudioUsageMedia
+	AAudioUsageVoiceCommunication
+	AAudioUsageVoiceCommunicationSignalling
+	AAudioUsageAlarm
+	AAudioUsageNotification
+	AAudioUsageNotificationRingtone
+	AAudioUsageNotificationEvent
+	AAudioUsageAssistanceAccessibility
+	AAudioUsageAssistanceNavigationGuidance
+	AAudioUsageAssistanceSonification
+	AAudioUsageGame
+	AAudioUsageAssitant
+	AAudioUsageEmergency
+	AAudioUsageSafety
+	AAudioUsageVehicleStatus
+	AAudioUsageAnnouncement
+)
+
+// AAudioContentType type.
+type AAudioContentType uint32
+
+// AAudioContentTypes enumeration.
+const (
+	AAudioContentTypeDefault AAudioContentType = iota
+	AAudioContentTypeSpeech
+	AAudioContentTypeMusic
+	AAudioContentTypeMovie
+	AAudioContentTypeSonification
+)
+
+// AAudioInputPreset type.
+type AAudioInputPreset uint32
+
+// AAudioInputPresets enumeration.
+const (
+	AAudioInputPresetDefault AAudioInputPreset = iota
+	AAudioInputPresetGeneric
+	AAudioInputPresetCamcorder
+	AAudioInputPresetVoiceRecognition
+	AAudioInputPresetVoiceCommunication
+	AAudioInputPresetUnprocessed
+	AAudioInputPresetVoicePerformance
+)
+
+// AAudioAllowedCapturePolicy type.
+type AAudioAllowedCapturePolicy uint32
+
+// AAudioAllowedCapturePolicies enumeration.
+const (
+	AAudioAllowCapturePolicyDefault AAudioAllowedCapturePolicy = iota
+	AAudioAllowCapturePolicyByAll
+	AAudioAllowCapturePolicyBySystem
+	AAudioAllowCapturePolicyByNone
+)
