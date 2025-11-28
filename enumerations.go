@@ -117,6 +117,39 @@ const (
 	IOSSessionCategoryOptionAllowAirPlay                         = 0x40 // AVAudioSessionCategoryOptionAllowAirPlay
 )
 
+// DataFormatFlag type.
+type DataFormatFlag uint32
+
+const (
+	DataFormatFlagNone          DataFormatFlag = 0
+	DataFormatFlagExclusiveMode DataFormatFlag = 1 << 1
+)
+
+var flagNames = map[DataFormatFlag]string{
+	DataFormatFlagExclusiveMode: "ExclusiveMode",
+}
+
+func (f *DataFormatFlag) Set(flag DataFormatFlag) {
+	*f |= flag
+}
+
+func (f *DataFormatFlag) Clear(flag DataFormatFlag) {
+	*f &^= flag
+}
+
+func (f DataFormatFlag) Has(flag DataFormatFlag) bool {
+	return f&flag != 0
+}
+
+func (f DataFormatFlag) List() []string {
+	var active []string
+	for flag, name := range flagNames {
+		if f.Has(flag) {
+			active = append(active, name)
+		}
+	}
+	return active
+}
 // AAudioUsage type.
 type AAudioUsage uint32
 
