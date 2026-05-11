@@ -101,6 +101,46 @@ func (dev *Device) SampleRate() uint32 {
 	return uint32(dev.cptr().sampleRate)
 }
 
+// CaptureInternalSampleRate returns the sample rate negotiated with the audio
+// backend for capture. This may differ from SampleRate() when the backend
+// cannot honor the requested rate, for example when ALSA's dsnoop plugin locks
+// the hardware at a fixed rate and resamples in software.
+func (dev *Device) CaptureInternalSampleRate() uint32 {
+	return uint32(dev.cptr().capture.internalSampleRate)
+}
+
+// PlaybackInternalSampleRate returns the sample rate negotiated with the audio
+// backend for playback.
+func (dev *Device) PlaybackInternalSampleRate() uint32 {
+	return uint32(dev.cptr().playback.internalSampleRate)
+}
+
+// CaptureInternalFormat returns the sample format negotiated with the audio
+// backend for capture. This may differ from CaptureFormat() when the backend
+// performs format conversion internally.
+func (dev *Device) CaptureInternalFormat() FormatType {
+	return FormatType(dev.cptr().capture.internalFormat)
+}
+
+// PlaybackInternalFormat returns the sample format negotiated with the audio
+// backend for playback.
+func (dev *Device) PlaybackInternalFormat() FormatType {
+	return FormatType(dev.cptr().playback.internalFormat)
+}
+
+// CaptureInternalChannels returns the channel count negotiated with the audio
+// backend for capture. This may differ from CaptureChannels() when the backend
+// performs channel conversion internally.
+func (dev *Device) CaptureInternalChannels() uint32 {
+	return uint32(dev.cptr().capture.internalChannels)
+}
+
+// PlaybackInternalChannels returns the channel count negotiated with the audio
+// backend for playback.
+func (dev *Device) PlaybackInternalChannels() uint32 {
+	return uint32(dev.cptr().playback.internalChannels)
+}
+
 // Start activates the device.
 // For playback devices this begins playback. For capture devices it begins recording.
 //
