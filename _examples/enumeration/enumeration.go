@@ -31,9 +31,11 @@ func main() {
 		full, err := context.DeviceInfo(malgo.Playback, info.ID, malgo.Shared)
 		if err != nil {
 			e = err.Error()
+		} else if full.IsDefault {
+			e += ", default"
 		}
 		fmt.Printf("    %d: %v, %s, [%s], formats: %+v\n",
-			i, info.ID, info.Name(), e, full.Formats)
+			i, info.ID.String(), info.Name, e, full.Formats)
 	}
 
 	fmt.Println()
@@ -51,8 +53,10 @@ func main() {
 		full, err := context.DeviceInfo(malgo.Capture, info.ID, malgo.Shared)
 		if err != nil {
 			e = err.Error()
+		} else if full.IsDefault {
+			e += ", default"
 		}
 		fmt.Printf("    %d: %v, %s, [%s], formats: %+v\n",
-			i, info.ID, info.Name(), e, full.Formats)
+			i, info.ID.String(), info.Name, e, full.Formats)
 	}
 }
