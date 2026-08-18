@@ -4,6 +4,7 @@ package malgo
 /*
 #cgo CFLAGS: -std=gnu99 -Wno-unused-result
 #cgo ma_debug CFLAGS: -DMA_DEBUG_OUTPUT=1
+#cgo !ma_full CFLAGS: -DMA_NO_DECODING -DMA_NO_ENCODING -DMA_NO_WAV -DMA_NO_FLAC -DMA_NO_MP3 -DMA_NO_RESOURCE_MANAGER -DMA_NO_NODE_GRAPH -DMA_NO_ENGINE -DMA_NO_GENERATION
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
 #cgo linux,arm LDFLAGS: -latomic
@@ -15,6 +16,7 @@ package malgo
 #cgo ios LDFLAGS: -framework CoreFoundation -framework AVFAudio -framework CoreAudio -framework AudioToolbox
 
 #cgo !noasm,!arm,!arm64 CFLAGS: -msse2
+#cgo !noasm,amd64.v3 CFLAGS: -mavx -mavx2
 #cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
 #cgo noasm CFLAGS: -DMA_NO_SSE2 -DMA_NO_AVX2 -DMA_NO_AVX512 -DMA_NO_NEON
 
