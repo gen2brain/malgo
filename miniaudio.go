@@ -4,6 +4,7 @@ package malgo
 /*
 #cgo CFLAGS: -std=gnu99 -Wno-unused-result
 #cgo ma_debug CFLAGS: -DMA_DEBUG_OUTPUT=1
+#cgo !ma_full CFLAGS: -DMA_NO_DECODING -DMA_NO_ENCODING -DMA_NO_WAV -DMA_NO_FLAC -DMA_NO_MP3 -DMA_NO_RESOURCE_MANAGER -DMA_NO_NODE_GRAPH -DMA_NO_ENGINE -DMA_NO_GENERATION
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
 #cgo linux,arm LDFLAGS: -latomic
