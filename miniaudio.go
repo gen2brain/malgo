@@ -15,6 +15,7 @@ package malgo
 #cgo ios LDFLAGS: -framework CoreFoundation -framework AVFAudio -framework CoreAudio -framework AudioToolbox
 
 #cgo !noasm,!arm,!arm64 CFLAGS: -msse2
+#cgo !noasm,amd64.v3 CFLAGS: -mavx -mavx2
 #cgo !noasm,arm,arm64 CFLAGS: -mfpu=neon -mfloat-abi=hard
 #cgo noasm CFLAGS: -DMA_NO_SSE2 -DMA_NO_AVX2 -DMA_NO_AVX512 -DMA_NO_NEON
 
