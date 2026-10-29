@@ -8,9 +8,7 @@ package malgo
 
 #cgo linux,!android LDFLAGS: -ldl -lpthread -lm
 #cgo linux,arm LDFLAGS: -latomic
-#cgo openbsd LDFLAGS: -lpthread -lm
-#cgo netbsd LDFLAGS: -ldl -lpthread -lm
-#cgo freebsd LDFLAGS: -ldl -lpthread -lm
+#cgo openbsd netbsd freebsd LDFLAGS: -lpthread -lm
 #cgo android LDFLAGS: -lm
 #cgo ios CFLAGS: -x objective-c
 #cgo ios LDFLAGS: -framework CoreFoundation -framework AVFAudio -framework CoreAudio -framework AudioToolbox
